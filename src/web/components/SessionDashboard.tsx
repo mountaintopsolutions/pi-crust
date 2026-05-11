@@ -28,6 +28,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [followUpBySession, setFollowUpBySession] = useState<Record<string, string[]>>({});
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,8 +203,18 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   }
 
   return (
-    <main className="session-dashboard">
-      <aside className="session-sidebar" aria-label="Sessions">
+    <main className={`session-dashboard ${sidebarOpen ? "" : "collapsed"}`}>
+      <button
+        type="button"
+        className="sidebar-toggle"
+        aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        aria-pressed={sidebarOpen}
+        onClick={() => setSidebarOpen((open) => !open)}
+      >
+        <SidebarToggleGlyph />
+      </button>
+
+      <aside className="session-sidebar" aria-label="Sessions" aria-hidden={!sidebarOpen}>
         <header>
           <img src={iconBlack} alt="" aria-hidden="true" />
           <h1>pi remote</h1>
@@ -262,12 +273,6 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 <button type="button" onClick={() => void deleteActive()}>Delete</button>
               </div>
             </header>
-            <dl>
-              <dt>Status</dt><dd>{activeSession.status}</dd>
-              <dt>CWD</dt><dd>{activeSession.cwd}</dd>
-              <dt>Model</dt><dd>{activeSession.model ?? "not selected"}</dd>
-              <dt>Tokens</dt><dd>{activeSession.tokenSummary ?? "n/a"}</dd>
-            </dl>
 
             <div className="active-session-workspace">
               <MessageTimeline messages={messagesBySession[activeSession.id] ?? []} />
@@ -286,6 +291,15 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 onAbortBash={() => undefined}
                 onSlashCommand={handleSlashCommand}
               />
+              <div className="session-status-bar" aria-label="Session status">
+                <span><span className="label">status</span>{activeSession.status}</span>
+                <span className="sep">·</span>
+                <span title={activeSession.cwd}><span className="label">cwd</span>{shortPath(activeSession.cwd)}</span>
+                <span className="sep">·</span>
+                <span><span className="label">model</span>{activeSession.model ?? "not selected"}</span>
+                <span className="sep">·</span>
+                <span><span className="label">tokens</span>{activeSession.tokenSummary ?? "0"}</span>
+              </div>
             </div>
           </>
         ) : (
@@ -318,6 +332,22 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
 
 function basename(value: string): string {
   return value.split("/").filter(Boolean).at(-1) ?? value;
+}
+
+function shortPath(value: string): string {
+  const segments = value.split("/").filter(Boolean);
+  if (segments.length <= 2) return value;
+  return `…/${segments.slice(-2).join("/")}`;
+}
+
+function SidebarToggleGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="2.5" y1="4" x2="13.5" y2="4" />
+      <line x1="2.5" y1="8" x2="13.5" y2="8" />
+      <line x1="2.5" y1="12" x2="13.5" y2="12" />
+    </svg>
+  );
 }
 
 function toTimelineMessage(message: import("../api/session-api.js").DashboardMessage): TimelineMessage {

@@ -49,6 +49,29 @@ test('opens model picker for /model slash command instead of sending it as a pro
   await expect(page.getByText('mock/mock-echo')).toBeVisible();
 });
 
+test('shows status bar below composer with cwd, model, tokens', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Seeded session/ }).click();
+
+  const status = page.getByLabel('Session status');
+  await expect(status).toBeVisible();
+  await expect(status).toContainText('cwd');
+  await expect(status).toContainText('model');
+  await expect(status).toContainText('tokens');
+});
+
+test('sidebar collapses and expands via the toggle', async ({ page }) => {
+  await page.goto('/');
+  const sidebar = page.getByRole('complementary', { name: 'Sessions' });
+  await expect(sidebar).toBeVisible();
+
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+  await expect(sidebar).toBeHidden();
+
+  await page.getByRole('button', { name: 'Expand sidebar' }).click();
+  await expect(sidebar).toBeVisible();
+});
+
 test('shortcut modal opens with ? outside an input, ignored inside textarea', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Seeded session/ }).click();
