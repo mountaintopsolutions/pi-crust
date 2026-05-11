@@ -790,37 +790,37 @@ Make the app reliable and pleasant over Tailscale from a mobile device.
 
 ## Todo
 
-- [ ] App-level auth token.
-- [ ] Optional QR pairing flow.
+- [x] App-level auth token.
+- [x] Optional QR pairing flow.
 - [ ] Bind/server host configuration for Tailscale.
 - [ ] PWA manifest.
 - [ ] Mobile home-screen install support.
 - [ ] Push notifications:
   - [ ] agent finished
-  - [ ] approval needed
+  - [x] approval needed
   - [ ] error/failure
   - [ ] retry exhausted
-- [ ] Reconnect/resume after phone lock.
-- [ ] Low-bandwidth mode.
-- [ ] Approval inbox across all sessions.
-- [ ] Read-only mode.
-- [ ] Server admin/status page.
-- [ ] Idle session disposal policy.
-- [ ] Cost dashboard.
+- [x] Reconnect/resume after phone lock.
+- [x] Low-bandwidth mode.
+- [x] Approval inbox across all sessions.
+- [x] Read-only mode.
+- [x] Server admin/status page.
+- [x] Idle session disposal policy.
+- [x] Cost dashboard.
 
 ## TDD-style tests
 
-- [ ] Unauthorized requests are rejected.
-- [ ] Authorized WebSocket connects successfully.
-- [ ] QR/pairing flow creates valid token.
-- [ ] Mobile viewport passes critical navigation tests.
-- [ ] Simulated disconnect/reconnect restores active session.
+- [x] Unauthorized requests are rejected.
+- [x] Authorized WebSocket connects successfully.
+- [x] QR/pairing flow creates valid token.
+- [x] Mobile viewport passes critical navigation tests.
+- [x] Simulated disconnect/reconnect restores active session.
 - [ ] Push notification is requested when approval arrives.
-- [ ] Approval notification opens correct session.
-- [ ] Low-bandwidth mode collapses tool output by default.
-- [ ] Read-only mode disables prompt/tool-mutating actions.
-- [ ] Idle session disposal removes session from hot registry after timeout.
-- [ ] Cost dashboard aggregates session usage fixtures.
+- [x] Approval notification opens correct session.
+- [x] Low-bandwidth mode collapses tool output by default.
+- [x] Read-only mode disables prompt/tool-mutating actions.
+- [x] Idle session disposal removes session from hot registry after timeout.
+- [x] Cost dashboard aggregates session usage fixtures.
 
 ---
 
