@@ -167,19 +167,33 @@ class MockPiSessionHandle implements PiSessionHandle {
     return [...this.messages];
   }
 
-  async prompt(message: string, _attachments: readonly PromptAttachment[] = []): Promise<void> {
+  async prompt(message: string, attachments: readonly PromptAttachment[] = []): Promise<void> {
     this.status = "running";
     this.emit({ type: "agent_start" });
     const timestamp = Date.now();
-    const userMessage: SessionMessage = { role: "user", content: message, timestamp };
+    const images = attachments
+      .filter((attachment) => attachment.type === "image" && attachment.data)
+      .map((attachment) => ({
+        data: attachment.data!,
+        mimeType: attachment.mimeType ?? "image/png",
+      }));
+    const userMessage: SessionMessage = {
+      role: "user",
+      content: message,
+      timestamp,
+      ...(images.length > 0 ? { images } : {}),
+    };
     this.messages.push(userMessage);
     this.lastActivity = Date.now();
     this.emit({ type: "message", message: userMessage });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
+    const assistantBody = images.length > 0
+      ? `Got ${images.length} image attachment${images.length === 1 ? "" : "s"} (${images.map((image) => `${image.mimeType}, ${image.data.length} chars`).join("; ")}). ${this.assistantResponse(message)}`
+      : this.assistantResponse(message);
     const assistantMessage: SessionMessage = {
       role: "assistant",
-      content: this.assistantResponse(message),
+      content: assistantBody,
       timestamp: timestamp + 1,
     };
     this.messages.push(assistantMessage);

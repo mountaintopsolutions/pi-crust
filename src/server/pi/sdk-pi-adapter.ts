@@ -234,10 +234,22 @@ class SdkPiSessionHandle implements PiSessionHandle {
           }
         }
       } else if (message.role === "user" || message.role === "system") {
+        const blocks: any[] = Array.isArray(message.content) ? message.content : [];
+        const text = typeof message.content === "string"
+          ? message.content
+          : blocks.filter((block) => block?.type === "text").map((block) => String(block.text ?? "")).join("\n");
+        const images = blocks
+          .filter((block) => block?.type === "image")
+          .map((block) => ({
+            data: String(block.data ?? ""),
+            mimeType: String(block.mimeType ?? "image/png"),
+          }))
+          .filter((image) => image.data.length > 0);
         result.push({
           role: message.role,
-          content: stringifyContent(message.content),
+          content: text,
           timestamp,
+          ...(images.length > 0 ? { images } : {}),
         });
       }
     }
@@ -248,12 +260,9 @@ class SdkPiSessionHandle implements PiSessionHandle {
     const images = attachments
       .filter((attachment) => attachment.type === "image" && attachment.data)
       .map((attachment) => ({
-        type: "image",
-        source: {
-          type: "base64",
-          mediaType: attachment.mimeType ?? "image/png",
-          data: attachment.data,
-        },
+        type: "image" as const,
+        data: attachment.data!,
+        mimeType: attachment.mimeType ?? "image/png",
       }));
     await this.session.prompt(message, images.length > 0 ? { images } : undefined);
   }
@@ -319,11 +328,16 @@ function stringifyContent(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((block) => {
-        if (block && typeof block === "object" && "text" in block) return String((block as { text: unknown }).text);
-        if (block && typeof block === "object" && "thinking" in block) return String((block as { thinking: unknown }).thinking);
-        return JSON.stringify(block);
+        if (!block || typeof block !== "object") return "";
+        const b = block as Record<string, unknown>;
+        if (typeof b.text === "string") return b.text;
+        if (typeof b.thinking === "string") return b.thinking;
+        if (b.type === "image") return ""; // image blocks surface via the images field, not text
+        if (b.type === "toolCall") return "";
+        return "";
       })
+      .filter(Boolean)
       .join("\n");
   }
-  return content === undefined ? "" : JSON.stringify(content);
+  return content === undefined ? "" : "";
 }

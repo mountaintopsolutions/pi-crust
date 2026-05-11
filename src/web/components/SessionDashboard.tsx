@@ -853,6 +853,15 @@ function toTimelineMessage(message: import("../api/session-api.js").DashboardMes
     ...(message.error === undefined ? {} : { error: message.error }),
     ...(message.tool === undefined ? {} : { tool: message.tool }),
     ...(message.timestamp === undefined ? {} : { timestamp: message.timestamp }),
+    ...(message.images && message.images.length > 0
+      ? {
+          images: message.images.map((image, index) => ({
+            id: `${message.id}-img-${index}`,
+            src: `data:${image.mimeType};base64,${image.data}`,
+            alt: "image attachment",
+          })),
+        }
+      : {}),
   };
 }
 

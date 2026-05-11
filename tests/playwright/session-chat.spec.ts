@@ -107,6 +107,40 @@ test('streams the user and assistant messages over SSE during a turn', async ({ 
   await expect(page.getByText('Mock response to: streaming hello')).toBeVisible();
 });
 
+test('pasted image flows end-to-end: user bubble preview, no raw JSON, assistant acknowledges', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Seeded session/ }).click();
+  const draft = page.getByLabel('Prompt draft');
+  await draft.focus();
+
+  // 1x1 transparent PNG
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+  await page.evaluate(async (b64) => {
+    const draftEl = document.querySelector('textarea[aria-label="Prompt draft"]') as HTMLTextAreaElement;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const file = new File([bytes], 'screenshot.png', { type: 'image/png' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    draftEl.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, pngBase64);
+
+  await expect(page.getByText('screenshot.png')).toBeVisible();
+  await draft.fill('What is in the image?');
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  // Assistant ack confirms the image actually reached the adapter
+  await expect(page.getByText(/Got 1 image attachment/)).toBeVisible();
+  await expect(page.getByText(/image\/png/)).toBeVisible();
+
+  // User bubble must NOT show raw JSON content blocks
+  await expect(page.getByText(/"type":"image"/)).toHaveCount(0);
+  await expect(page.getByText(/"mediaType"/)).toHaveCount(0);
+  await expect(page.getByText(/iVBORw0KGgo/)).toHaveCount(0);
+
+  // And the user message should render an image preview (not text)
+  await expect(page.locator('.message-card.user img').first()).toBeVisible();
+});
+
 test('pasting an image attaches it as an attachment instead of inserting raw text', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Seeded session/ }).click();

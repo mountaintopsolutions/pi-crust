@@ -207,6 +207,7 @@ function toDashboardMessages(messages: readonly SessionMessage[]) {
     text: message.content,
     provider: message.role === "assistant" ? "pi" : undefined,
     tool: message.tool,
+    images: message.images,
     timestamp: message.timestamp,
   }));
 }

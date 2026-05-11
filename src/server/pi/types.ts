@@ -53,6 +53,12 @@ export interface SessionMessage {
   readonly content: string;
   readonly timestamp: number;
   readonly tool?: SessionToolDetails;
+  readonly images?: readonly SessionMessageImage[];
+}
+
+export interface SessionMessageImage {
+  readonly data: string;
+  readonly mimeType: string;
 }
 
 export interface PromptAttachment {

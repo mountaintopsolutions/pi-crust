@@ -42,6 +42,11 @@ export interface PromptAttachment {
   readonly data?: string;
 }
 
+export interface DashboardMessageImage {
+  readonly data: string;
+  readonly mimeType: string;
+}
+
 export interface DashboardMessage {
   readonly id: string;
   readonly role: "user" | "assistant" | "custom" | "summary" | "tool";
@@ -53,6 +58,7 @@ export interface DashboardMessage {
   readonly cost?: string;
   readonly error?: string;
   readonly tool?: DashboardToolDetails;
+  readonly images?: readonly DashboardMessageImage[];
   readonly timestamp?: number;
 }
 
