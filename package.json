@@ -1,0 +1,23 @@
+{
+  "name": "pi-remote-control",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-first self-hosted web control plane for many concurrent Pi coding-agent sessions.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "vitest run tests/e2e",
+    "check": "npm run typecheck && npm test && npm run e2e"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

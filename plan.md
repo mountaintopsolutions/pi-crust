@@ -114,33 +114,32 @@ Create a clean repository with project conventions, basic tooling decisions, and
 
 ## Todo
 
-- [ ] Initialize git repository.
-- [ ] Add `plan.md`.
-- [ ] Decide package manager: npm, pnpm, bun, or yarn.
-- [ ] Decide app layout:
-  - [ ] `server/`
+- [x] Initialize git repository.
+- [x] Add `plan.md`.
+- [x] Decide package manager: npm.
+- [x] Decide app layout:
+  - [x] `src/server/`
   - [ ] `web/`
-  - [ ] `shared/`
+  - [x] `src/shared/`
   - [ ] `docs/`
   - [ ] `fixtures/`
-- [ ] Choose frontend stack.
-  - Candidate: Vite + React + TypeScript.
-- [ ] Choose backend stack.
-  - Candidate: Node + TypeScript + Fastify + WebSocket.
-- [ ] Choose test stack.
+- [x] Choose frontend stack.
+  - Initial choice: defer frontend framework until Phase 3; TypeScript shared code first.
+- [x] Choose backend stack.
+  - Initial choice: Node + TypeScript; HTTP/WebSocket framework deferred to Phase 2.
+- [x] Choose test stack.
   - Unit/component: Vitest.
-  - Browser E2E: Playwright.
-  - Optional component tests: Testing Library.
-- [ ] Add formatting/linting conventions.
-- [ ] Add `.gitignore`.
-- [ ] Add README with local run/development notes.
+  - Browser E2E: deferred; placeholder e2e harness uses Vitest until a browser exists.
+- [x] Add formatting/linting conventions.
+- [x] Add `.gitignore`.
+- [x] Add README with local run/development notes.
 
 ## TDD-style tests
 
-- [ ] Repository sanity test: project installs cleanly.
-- [ ] Typecheck command exists and passes.
-- [ ] Unit test command exists and passes with one placeholder test.
-- [ ] E2E command exists and can launch a placeholder page/server.
+- [x] Repository sanity test: project installs cleanly.
+- [x] Typecheck command exists and passes.
+- [x] Unit test command exists and passes with one placeholder test.
+- [x] E2E command exists and can launch a placeholder page/server.
 
 ---
 
