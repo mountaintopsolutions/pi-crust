@@ -27,6 +27,14 @@ export interface DashboardMessage {
   readonly error?: string;
 }
 
+export interface ModelOption {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+  readonly available: boolean;
+  readonly reason?: string;
+}
+
 export interface SessionDashboardApi {
   getDefaultCwd?(): Promise<string>;
   listSessions(cwd?: string): Promise<readonly SessionCardData[]>;
@@ -37,4 +45,6 @@ export interface SessionDashboardApi {
   prompt(sessionId: string, text: string): Promise<readonly DashboardMessage[]>;
   bash(sessionId: string, command: string, includeInContext: boolean): Promise<readonly DashboardMessage[]>;
   abort(sessionId: string): Promise<void>;
+  listModels?(): Promise<readonly ModelOption[]>;
+  setModel?(sessionId: string, provider: string, modelId: string): Promise<SessionCardData>;
 }

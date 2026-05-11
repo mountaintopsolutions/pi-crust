@@ -15,8 +15,18 @@ export interface SessionState {
   readonly sessionFile: string;
   readonly status: SessionStatus;
   readonly sessionName?: string;
+  readonly model?: string;
+  readonly modelProvider?: string;
   readonly messageCount: number;
   readonly lastActivity: number;
+}
+
+export interface ModelInfo {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+  readonly available: boolean;
+  readonly reason?: string;
 }
 
 export type PiEvent =
@@ -51,6 +61,7 @@ export interface PiSessionHandle {
   getMessages(): Promise<readonly SessionMessage[]>;
   prompt(message: string): Promise<void>;
   abort(): Promise<void>;
+  setModel(provider: string, modelId: string): Promise<SessionState>;
   subscribe(listener: PiEventListener): Unsubscribe;
   dispose(): Promise<void>;
 }
@@ -59,4 +70,5 @@ export interface PiAdapter {
   createSession(options: CreateSessionOptions): Promise<PiSessionHandle>;
   openSession(options: OpenSessionOptions): Promise<PiSessionHandle>;
   listSessions(cwd?: string): Promise<readonly SessionListItem[]>;
+  listModels(): Promise<readonly ModelInfo[]>;
 }

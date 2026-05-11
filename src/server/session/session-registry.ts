@@ -1,5 +1,5 @@
 import type { PathPolicy } from "../security/path-policy.js";
-import type { CreateSessionOptions, PiAdapter, PiEventListener, PiSessionHandle, SessionListItem } from "../pi/types.js";
+import type { CreateSessionOptions, ModelInfo, PiAdapter, PiEventListener, PiSessionHandle, SessionListItem } from "../pi/types.js";
 
 export interface SessionRegistryOptions {
   readonly adapter: PiAdapter;
@@ -70,6 +70,14 @@ export class SessionRegistry {
 
   async abort(sessionId: string): Promise<void> {
     await this.getSession(sessionId).handle.abort();
+  }
+
+  async listModels(): Promise<readonly ModelInfo[]> {
+    return this.adapter.listModels();
+  }
+
+  async setModel(sessionId: string, provider: string, modelId: string): Promise<void> {
+    await this.getSession(sessionId).handle.setModel(provider, modelId);
   }
 
   subscribe(sessionId: string, listener: PiEventListener): () => void {

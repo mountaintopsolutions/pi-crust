@@ -8,6 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type {
   CreateSessionOptions,
+  ModelInfo,
   OpenSessionOptions,
   PiAdapter,
   PiEventListener,
@@ -41,7 +42,7 @@ export class SdkPiAdapter implements PiAdapter {
       settingsManager: this.settingsManager,
       sessionManager: SessionManager.create(cwd, this.options.sessionDir),
     });
-    return new SdkPiSessionHandle(session, cwd);
+    return new SdkPiSessionHandle(session, cwd, this.modelRegistry);
   }
 
   async openSession(options: OpenSessionOptions): Promise<PiSessionHandle> {
@@ -51,7 +52,17 @@ export class SdkPiAdapter implements PiAdapter {
       settingsManager: this.settingsManager,
       sessionManager: SessionManager.open(options.sessionFile, this.options.sessionDir),
     });
-    return new SdkPiSessionHandle(session, process.cwd());
+    return new SdkPiSessionHandle(session, process.cwd(), this.modelRegistry);
+  }
+
+  async listModels(): Promise<readonly ModelInfo[]> {
+    const available = await this.modelRegistry.getAvailable();
+    return available.map((model: any) => ({
+      provider: String(model.provider ?? ""),
+      id: String(model.id ?? ""),
+      name: String(model.name ?? model.id ?? "unknown"),
+      available: true,
+    }));
   }
 
   async listSessions(cwd?: string): Promise<readonly SessionListItem[]> {
@@ -73,21 +84,30 @@ class SdkPiSessionHandle implements PiSessionHandle {
   readonly id: string;
   readonly sessionFile: string;
 
-  constructor(private readonly session: any, readonly cwd: string) {
+  constructor(private readonly session: any, readonly cwd: string, private readonly modelRegistry: any) {
     this.id = String(session.sessionId);
     this.sessionFile = String(session.sessionFile ?? "");
   }
 
   async getState(): Promise<SessionState> {
+    const sdkModel = this.session.model;
     return {
       id: this.id,
       cwd: this.cwd,
       sessionFile: this.sessionFile,
       status: this.session.isStreaming ? "running" : "idle",
       ...(this.session.sessionName === undefined ? {} : { sessionName: String(this.session.sessionName) }),
+      ...(sdkModel ? { modelProvider: String(sdkModel.provider ?? ""), model: String(sdkModel.id ?? "") } : {}),
       messageCount: Array.isArray(this.session.messages) ? this.session.messages.length : 0,
       lastActivity: Date.now(),
     };
+  }
+
+  async setModel(provider: string, modelId: string): Promise<SessionState> {
+    const model = this.modelRegistry.find(provider, modelId);
+    if (!model) throw new Error(`Model not found: ${provider}/${modelId}`);
+    await this.session.setModel(model);
+    return this.getState();
   }
 
   async getMessages(): Promise<readonly SessionMessage[]> {

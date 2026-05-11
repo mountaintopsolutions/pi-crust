@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { SessionCardData, SessionDashboardApi } from "../api/session-api.js";
 import iconBlack from "../assets-icon-black.svg";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
+import { ModelPicker } from "./ModelPicker.js";
 import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
 import "./session-dashboard.css";
 
@@ -24,6 +25,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [messagesBySession, setMessagesBySession] = useState<Record<string, TimelineMessage[]>>({});
   const [steeringBySession, setSteeringBySession] = useState<Record<string, string[]>>({});
   const [followUpBySession, setFollowUpBySession] = useState<Record<string, string[]>>({});
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +130,44 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     setFollowUpBySession((current) => ({ ...current, [activeSession.id]: [...(current[activeSession.id] ?? []), text] }));
   }
 
+  async function handleSlashCommand(name: string, argv: string) {
+    if (!activeSession) {
+      setNotice("Open or create a session first to run slash commands.");
+      return;
+    }
+    switch (name) {
+      case "model":
+      case "models":
+        setModelPickerOpen(true);
+        return;
+      case "session":
+      case "info":
+        setNotice(`Session ${activeSession.id} — model ${activeSession.model ?? "unset"} — ${activeSession.tokenSummary ?? ""}`);
+        return;
+      case "new":
+        await createSession();
+        return;
+      case "name":
+        if (!argv.trim()) {
+          setNotice("Usage: /name <session name>");
+          return;
+        }
+        await api.renameSession(activeSession.id, argv.trim());
+        setSessions((current) => current.map((session) => session.id === activeSession.id ? { ...session, sessionName: argv.trim() } : session));
+        return;
+      case "quit":
+      case "close":
+        await deleteActive();
+        return;
+      case "help":
+      case "hotkeys":
+        setNotice("Available: /model, /session, /new, /name <name>, /quit, /help");
+        return;
+      default:
+        setNotice(`Command \"/${name}\" is recognised in the TUI but not yet implemented in the WUI.`);
+    }
+  }
+
   async function handleBash(command: string, includeInContext: boolean) {
     if (!activeSession) return;
     const now = Date.now();
@@ -227,6 +268,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 onAbort={() => activeSession ? api.abort(activeSession.id) : undefined}
                 onBash={handleBash}
                 onAbortBash={() => undefined}
+                onSlashCommand={handleSlashCommand}
               />
             </div>
           </>
@@ -234,6 +276,24 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
           <p>Select or create a session.</p>
         )}
       </section>
+
+      {notice ? (
+        <div role="status" aria-live="polite" className="dashboard-notice">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice">Dismiss</button>
+        </div>
+      ) : null}
+
+      <ModelPicker
+        open={modelPickerOpen}
+        loadModels={async () => (api.listModels ? api.listModels() : [])}
+        onSelect={async (provider, modelId) => {
+          if (!activeSession || !api.setModel) return;
+          const updated = await api.setModel(activeSession.id, provider, modelId);
+          setSessions((current) => current.map((session) => session.id === updated.id ? updated : session));
+        }}
+        onClose={() => setModelPickerOpen(false)}
+      />
     </main>
   );
 }

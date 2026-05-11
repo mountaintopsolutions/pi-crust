@@ -1,4 +1,4 @@
-import type { DashboardMessage, NewSessionInput, SessionCardData, SessionDashboardApi } from "./session-api.js";
+import type { DashboardMessage, ModelOption, NewSessionInput, SessionCardData, SessionDashboardApi } from "./session-api.js";
 
 const API_BASE = import.meta.env.VITE_PI_REMOTE_API_BASE ?? "http://127.0.0.1:8787";
 
@@ -39,6 +39,14 @@ export class HttpSessionDashboardApi implements SessionDashboardApi {
 
   async abort(sessionId: string): Promise<void> {
     await request(`/api/sessions/${encodeURIComponent(sessionId)}/abort`, { method: "POST", body: {} });
+  }
+
+  async listModels(): Promise<readonly ModelOption[]> {
+    return request<ModelOption[]>("/api/models");
+  }
+
+  async setModel(sessionId: string, provider: string, modelId: string): Promise<SessionCardData> {
+    return request<SessionCardData>(`/api/sessions/${encodeURIComponent(sessionId)}/model`, { method: "POST", body: { provider, modelId } });
   }
 }
 

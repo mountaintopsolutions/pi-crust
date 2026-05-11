@@ -13,6 +13,23 @@ test('can select a listed cold session and send hello without unknown-session er
   await expect(page.getByText(/Unknown session/)).toHaveCount(0);
 });
 
+test('opens model picker for /model slash command instead of sending it as a prompt', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Seeded session/ }).click();
+
+  await page.getByLabel('Prompt draft').fill('/model');
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Choose a model' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Mock Echo')).toBeVisible();
+  await expect(page.getByText(/Mock response to: \/model/)).toHaveCount(0);
+
+  await dialog.getByRole('button', { name: /Mock Echo/ }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('mock/mock-echo')).toBeVisible();
+});
+
 test('can create a new session and send hello', async ({ page }) => {
   await page.goto('/');
 

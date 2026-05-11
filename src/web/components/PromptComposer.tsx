@@ -21,6 +21,7 @@ export interface PromptComposerProps {
   readonly onAbort: () => void | Promise<void>;
   readonly onBash: (command: string, includeInContext: boolean) => void | Promise<void>;
   readonly onAbortBash: () => void | Promise<void>;
+  readonly onSlashCommand?: (name: string, argv: string) => void | Promise<void>;
 }
 
 export function PromptComposer(props: PromptComposerProps) {
@@ -59,6 +60,15 @@ export function PromptComposer(props: PromptComposerProps) {
     setDraft("");
     if (mode === "bash" || mode === "hidden-bash") {
       await props.onBash(mode === "hidden-bash" ? text.slice(2) : text.slice(1), mode === "bash");
+      return;
+    }
+    if (text.startsWith("/") && props.onSlashCommand) {
+      const trimmed = text.slice(1);
+      const spaceIndex = trimmed.indexOf(" ");
+      const name = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
+      const argv = spaceIndex === -1 ? "" : trimmed.slice(spaceIndex + 1);
+      await props.onSlashCommand(name, argv);
+      setAttachments([]);
       return;
     }
     if (kind === "steer") await props.onSteer(text);

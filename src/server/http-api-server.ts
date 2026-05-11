@@ -34,6 +34,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (req.method === "OPTIONS") return sendJson(res, 204, undefined);
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+  if (req.method === "GET" && url.pathname === "/api/models") {
+    return sendJson(res, 200, await registry.listModels());
+  }
+
   if (req.method === "GET" && url.pathname === "/api/health") {
     return sendJson(res, 200, { ok: true, adapter: useMock ? "mock" : "pi-sdk", projectRoot, sessionRoot, defaultCwd: process.cwd() });
   }
@@ -63,7 +67,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return sendJson(res, 200, toSessionCard(state));
   }
 
-  const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(messages|prompt|bash|abort|rename|delete))?$/);
+  const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(messages|prompt|bash|abort|rename|delete|model))?$/);
   if (!match) return sendJson(res, 404, { error: "not found" });
   const sessionId = decodeURIComponent(match[1]!);
   const action = match[2] ?? "state";
@@ -105,6 +109,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return sendJson(res, 200, toSessionCard(await session.handle.getState()));
   }
 
+  if (req.method === "POST" && action === "model") {
+    const body = await readJson(req) as { provider?: string; modelId?: string };
+    if (!body.provider || !body.modelId) return sendJson(res, 400, { error: "provider and modelId are required" });
+    const session = await getOrOpenSession(sessionId);
+    await registry.setModel(sessionId, body.provider, body.modelId);
+    return sendJson(res, 200, toSessionCard(await session.handle.getState()));
+  }
+
   if (req.method === "POST" && action === "delete") {
     await registry.disposeSession(sessionId);
     return sendJson(res, 200, { ok: true });
@@ -126,7 +138,7 @@ function toSessionCard(state: Awaited<ReturnType<import("./pi/types.js").PiSessi
     cwd: state.cwd,
     sessionName: state.sessionName,
     status: state.status === "running" ? "streaming" : state.status,
-    model: undefined,
+    model: state.modelProvider && state.model ? `${state.modelProvider}/${state.model}` : undefined,
     tokenSummary: `${state.messageCount} messages`,
     lastActivity: state.lastActivity,
   };

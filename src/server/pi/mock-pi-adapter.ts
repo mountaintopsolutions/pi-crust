@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type {
   CreateSessionOptions,
+  ModelInfo,
   OpenSessionOptions,
   PiAdapter,
   PiEvent,
@@ -28,15 +29,27 @@ interface PersistedMockSession {
 export interface MockPiAdapterOptions {
   readonly sessionRoot: string;
   readonly assistantResponse?: (prompt: string) => string;
+  readonly models?: readonly ModelInfo[];
 }
+
+const DEFAULT_MOCK_MODELS: readonly ModelInfo[] = [
+  { provider: "mock", id: "mock-echo", name: "Mock Echo", available: true },
+  { provider: "mock", id: "mock-loud", name: "Mock Loud", available: true },
+];
 
 export class MockPiAdapter implements PiAdapter {
   private readonly sessionRoot: string;
   private readonly assistantResponse: (prompt: string) => string;
+  private readonly models: readonly ModelInfo[];
 
   constructor(options: MockPiAdapterOptions) {
     this.sessionRoot = path.resolve(options.sessionRoot);
     this.assistantResponse = options.assistantResponse ?? ((prompt) => `Mock response to: ${prompt}`);
+    this.models = options.models ?? DEFAULT_MOCK_MODELS;
+  }
+
+  async listModels(): Promise<readonly ModelInfo[]> {
+    return this.models;
   }
 
   async createSession(options: CreateSessionOptions): Promise<PiSessionHandle> {
@@ -91,6 +104,8 @@ class MockPiSessionHandle implements PiSessionHandle {
   private readonly emitter = new EventEmitter();
   private status: SessionStatus = "idle";
   private sessionName: string | undefined;
+  private modelProvider: string | undefined;
+  private modelId: string | undefined;
   private messages: SessionMessage[];
   private lastActivity: number;
   private readonly assistantResponse: (prompt: string) => string;
@@ -112,9 +127,20 @@ class MockPiSessionHandle implements PiSessionHandle {
       sessionFile: this.sessionFile,
       status: this.status,
       ...(this.sessionName === undefined ? {} : { sessionName: this.sessionName }),
+      ...(this.modelProvider && this.modelId
+        ? { modelProvider: this.modelProvider, model: `${this.modelProvider}/${this.modelId}` }
+        : {}),
       messageCount: this.messages.length,
       lastActivity: this.lastActivity,
     };
+  }
+
+  async setModel(provider: string, modelId: string): Promise<SessionState> {
+    this.modelProvider = provider;
+    this.modelId = modelId;
+    this.lastActivity = Date.now();
+    await this.persist();
+    return this.getState();
   }
 
   async getMessages(): Promise<readonly SessionMessage[]> {
