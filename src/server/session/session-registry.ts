@@ -54,6 +54,10 @@ export class SessionRegistry {
     });
   }
 
+  hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
   getSession(sessionId: string): RegisteredSession {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Unknown session: ${sessionId}`);

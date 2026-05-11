@@ -16,6 +16,7 @@ const registry = new SessionRegistry({
   adapter: useMock ? new MockPiAdapter({ sessionRoot }) : new SdkPiAdapter({ sessionDir: sessionRoot }),
   pathPolicy: new PathPolicy({ allowedProjectRoots: [projectRoot], allowedSessionRoots: [sessionRoot] }),
 });
+const coldSessionFiles = new Map<string, string>();
 
 const server = http.createServer((req, res) => {
   void handle(req, res).catch((error) => sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) }));
@@ -40,9 +41,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (req.method === "GET" && url.pathname === "/api/sessions") {
     const cwd = url.searchParams.get("cwd") ?? undefined;
     const sessions = await registry.listSessions(cwd);
+    for (const session of sessions) coldSessionFiles.set(session.id, session.sessionFile);
     return sendJson(res, 200, sessions.map((session) => ({
       id: session.id,
       cwd: session.cwd,
+      sessionFile: session.sessionFile,
       sessionName: session.sessionName,
       status: "idle",
       model: undefined,
@@ -56,6 +59,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     if (!body.cwd) return sendJson(res, 400, { error: "cwd is required" });
     const created = await registry.createSession({ cwd: body.cwd, ...(body.sessionName ? { sessionName: body.sessionName } : {}) });
     const state = await created.handle.getState();
+    coldSessionFiles.set(created.id, created.sessionFile);
     return sendJson(res, 200, toSessionCard(state));
   }
 
@@ -65,15 +69,16 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const action = match[2] ?? "state";
 
   if (req.method === "GET" && action === "messages") {
-    const session = registry.getSession(sessionId);
+    const session = await getOrOpenSession(sessionId);
     return sendJson(res, 200, toDashboardMessages(await session.handle.getMessages()));
   }
 
   if (req.method === "POST" && action === "prompt") {
     const body = await readJson(req) as { text?: string };
     if (!body.text) return sendJson(res, 400, { error: "text is required" });
+    await getOrOpenSession(sessionId);
     await registry.prompt(sessionId, body.text);
-    const session = registry.getSession(sessionId);
+    const session = await getOrOpenSession(sessionId);
     return sendJson(res, 200, toDashboardMessages(await session.handle.getMessages()));
   }
 
@@ -82,19 +87,21 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     if (!body.command) return sendJson(res, 400, { error: "command is required" });
     // Temporary compatibility path: until the adapter exposes Pi's bash RPC operation directly,
     // add bash as a user-visible message and follow with a prompt asking Pi to run it.
+    await getOrOpenSession(sessionId);
     await registry.prompt(sessionId, `${body.includeInContext === false ? "Run this hidden shell command for operator context only" : "Run this shell command and consider its output"}: ${body.command}`);
-    const session = registry.getSession(sessionId);
+    const session = await getOrOpenSession(sessionId);
     return sendJson(res, 200, toDashboardMessages(await session.handle.getMessages()));
   }
 
   if (req.method === "POST" && action === "abort") {
+    await getOrOpenSession(sessionId);
     await registry.abort(sessionId);
     return sendJson(res, 200, { ok: true });
   }
 
   if (req.method === "POST" && action === "rename") {
     // Rename is currently optimistic/UI-only until adapter exposes session info mutation.
-    const session = registry.getSession(sessionId);
+    const session = await getOrOpenSession(sessionId);
     return sendJson(res, 200, toSessionCard(await session.handle.getState()));
   }
 
@@ -104,6 +111,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
 
   return sendJson(res, 405, { error: "method not allowed" });
+}
+
+async function getOrOpenSession(sessionId: string) {
+  if (registry.hasSession(sessionId)) return registry.getSession(sessionId);
+  const sessionFile = coldSessionFiles.get(sessionId);
+  if (!sessionFile) throw new Error(`Unknown session: ${sessionId}`);
+  return registry.openSession(sessionFile);
 }
 
 function toSessionCard(state: Awaited<ReturnType<import("./pi/types.js").PiSessionHandle["getState"]>>) {

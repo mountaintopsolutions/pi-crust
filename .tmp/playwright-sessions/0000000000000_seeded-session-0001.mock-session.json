@@ -1,0 +1,19 @@
+{
+  "id": "seeded-session-0001",
+  "cwd": "/Users/chris/code/pi-remote-control",
+  "sessionFile": "/Users/chris/code/pi-remote-control/.tmp/playwright-sessions/0000000000000_seeded-session-0001.mock-session.json",
+  "sessionName": "Seeded session",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello",
+      "timestamp": 1778476728996
+    },
+    {
+      "role": "assistant",
+      "content": "Mock response to: hello",
+      "timestamp": 1778476728997
+    }
+  ],
+  "lastActivity": 1778476728996
+}

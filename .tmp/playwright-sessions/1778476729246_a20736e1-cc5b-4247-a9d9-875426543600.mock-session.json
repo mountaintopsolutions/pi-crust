@@ -1,0 +1,19 @@
+{
+  "id": "a20736e1-cc5b-4247-a9d9-875426543600",
+  "cwd": "/Users/chris/code/pi-remote-control",
+  "sessionFile": "/Users/chris/code/pi-remote-control/.tmp/playwright-sessions/1778476729246_a20736e1-cc5b-4247-a9d9-875426543600.mock-session.json",
+  "sessionName": "Playwright new session",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello",
+      "timestamp": 1778476729378
+    },
+    {
+      "role": "assistant",
+      "content": "Mock response to: hello",
+      "timestamp": 1778476729379
+    }
+  ],
+  "lastActivity": 1778476729378
+}
