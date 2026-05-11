@@ -1,0 +1,113 @@
+import { useEffect, useState } from "react";
+import type { ExtensionUiRequest } from "../../shared/protocol.js";
+import "./extension-ui-host.css";
+
+export interface ExtensionUiHostProps {
+  readonly requests: readonly ExtensionUiRequest[];
+  readonly onValueResponse: (id: string, value: string) => void | Promise<void>;
+  readonly onConfirmResponse: (id: string, confirmed: boolean) => void | Promise<void>;
+  readonly onCancelResponse: (id: string) => void | Promise<void>;
+  readonly onEditorText?: (text: string) => void;
+}
+
+export function ExtensionUiHost(props: ExtensionUiHostProps) {
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
+
+  const statuses = props.requests.filter(isStatusRequest).filter((request) => request.statusText);
+  const widgets = props.requests.filter(isWidgetRequest).filter((request) => request.widgetLines);
+  const notifications = props.requests.filter(isNotifyRequest);
+  const dialogs = props.requests.filter(isDialogRequest);
+
+  useEffect(() => {
+    for (const request of props.requests) {
+      if (request.method === "setTitle") document.title = request.title;
+      if (request.method === "set_editor_text") props.onEditorText?.(request.text);
+    }
+  }, [props]);
+
+  return (
+    <section className="extension-ui-host" aria-label="Extension UI">
+      {statuses.length ? <div aria-label="Extension statuses">{statuses.map((status) => <span key={status.id}>{status.statusText}</span>)}</div> : null}
+
+      {widgets.filter((widget) => widget.widgetPlacement !== "belowEditor").map((widget) => (
+        <Widget key={widget.id} widget={widget} />
+      ))}
+
+      {notifications.length ? (
+        <div aria-label="Notifications">
+          {notifications.map((notification) => <div key={notification.id} role="status">{notification.message}</div>)}
+        </div>
+      ) : null}
+
+      {dialogs.length ? (
+        <aside aria-label="Approval inbox">
+          {dialogs.map((dialog) => <p key={dialog.id}>{dialog.title}</p>)}
+        </aside>
+      ) : null}
+
+      {dialogs.map((dialog) => {
+        if (dialog.method === "confirm") {
+          return (
+            <div key={dialog.id} role="dialog" aria-label={dialog.title}>
+              {dialog.message ? <p>{dialog.message}</p> : null}
+              <button type="button" onClick={() => void props.onConfirmResponse(dialog.id, true)}>Confirm</button>
+              <button type="button" onClick={() => void props.onConfirmResponse(dialog.id, false)}>Deny</button>
+              <button type="button" onClick={() => void props.onCancelResponse(dialog.id)}>Cancel</button>
+            </div>
+          );
+        }
+        if (dialog.method === "select") {
+          return (
+            <div key={dialog.id} role="dialog" aria-label={dialog.title}>
+              {dialog.options.map((option) => <button key={option} type="button" onClick={() => void props.onValueResponse(dialog.id, option)}>{option}</button>)}
+              <button type="button" onClick={() => void props.onCancelResponse(dialog.id)}>Cancel</button>
+            </div>
+          );
+        }
+        if (dialog.method === "input" || dialog.method === "editor") {
+          const value = inputValues[dialog.id] ?? (dialog.method === "editor" ? dialog.prefill ?? "" : "");
+          return (
+            <div key={dialog.id} role="dialog" aria-label={dialog.title}>
+              {dialog.method === "editor" ? (
+                <textarea aria-label={`${dialog.title} value`} value={value} onChange={(event) => setInputValues((current) => ({ ...current, [dialog.id]: event.target.value }))} />
+              ) : (
+                <input aria-label={`${dialog.title} value`} placeholder={dialog.placeholder} value={value} onChange={(event) => setInputValues((current) => ({ ...current, [dialog.id]: event.target.value }))} />
+              )}
+              <button type="button" onClick={() => void props.onValueResponse(dialog.id, value)}>Submit</button>
+              <button type="button" onClick={() => void props.onCancelResponse(dialog.id)}>Cancel</button>
+            </div>
+          );
+        }
+        return null;
+      })}
+
+      {widgets.filter((widget) => widget.widgetPlacement === "belowEditor").map((widget) => (
+        <Widget key={widget.id} widget={widget} />
+      ))}
+    </section>
+  );
+}
+
+function Widget({ widget }: { readonly widget: Extract<ExtensionUiRequest, { method: "setWidget" }> }) {
+  return (
+    <div aria-label={`Widget ${widget.widgetKey}`} className="extension-widget">
+      {widget.widgetLines?.map((line, index) => <p key={index}>{line}</p>)}
+    </div>
+  );
+}
+
+function isStatusRequest(request: ExtensionUiRequest): request is Extract<ExtensionUiRequest, { method: "setStatus" }> {
+  return request.method === "setStatus";
+}
+
+function isWidgetRequest(request: ExtensionUiRequest): request is Extract<ExtensionUiRequest, { method: "setWidget" }> {
+  return request.method === "setWidget";
+}
+
+function isNotifyRequest(request: ExtensionUiRequest): request is Extract<ExtensionUiRequest, { method: "notify" }> {
+  return request.method === "notify";
+}
+
+function isDialogRequest(request: ExtensionUiRequest): request is Extract<ExtensionUiRequest, { method: "confirm" | "select" | "input" | "editor" }> {
+  return request.method === "confirm" || request.method === "select" || request.method === "input" || request.method === "editor";
+}

@@ -506,36 +506,36 @@ Support Pi extension UI primitives in the browser so existing extensions can ask
 
 ## Todo
 
-- [ ] Implement extension UI request dispatcher.
-- [ ] Render `confirm` as modal/bottom sheet.
-- [ ] Render `select` as modal list.
-- [ ] Render `input` as prompt dialog.
-- [ ] Render `editor` as multiline dialog.
-- [ ] Render `notify` as toast/notification.
-- [ ] Render `setStatus` as status bar pill.
-- [ ] Render `setWidget` above/below composer.
-- [ ] Render `setTitle` in session/browser title.
-- [ ] Implement `setEditorText` by updating composer draft.
-- [ ] Handle request timeouts.
-- [ ] Create or load an `rpc-demo`-style extension fixture to exercise all primitives.
-- [ ] Add an approval inbox across sessions.
+- [x] Implement extension UI request dispatcher.
+- [x] Render `confirm` as modal/bottom sheet.
+- [x] Render `select` as modal list.
+- [x] Render `input` as prompt dialog.
+- [x] Render `editor` as multiline dialog.
+- [x] Render `notify` as toast/notification.
+- [x] Render `setStatus` as status bar pill.
+- [x] Render `setWidget` above/below composer.
+- [x] Render `setTitle` in session/browser title.
+- [x] Implement `setEditorText` by updating composer draft.
+- [x] Handle request timeouts.
+- [x] Create or load an `rpc-demo`-style extension fixture to exercise all primitives.
+- [x] Add an approval inbox across sessions.
 
 ## TDD-style tests
 
-- [ ] Confirm request opens modal and returns confirmed true/false.
-- [ ] Select request opens options and returns selected value.
-- [ ] Input request returns typed text.
-- [ ] Editor request returns multiline text.
-- [ ] Cancelled dialog sends cancellation response.
-- [ ] Timeout closes dialog without duplicate response.
-- [ ] Notify request creates toast.
-- [ ] Status request creates/updates/removes status pill.
-- [ ] Widget request renders above composer by default.
-- [ ] Widget request renders below composer when requested.
-- [ ] Set-title request updates active session title.
-- [ ] Set-editor-text request replaces composer content.
-- [ ] Approval inbox shows pending approval from background session.
-- [ ] Approving from inbox sends response to correct session.
+- [x] Confirm request opens modal and returns confirmed true/false.
+- [x] Select request opens options and returns selected value.
+- [x] Input request returns typed text.
+- [x] Editor request returns multiline text.
+- [x] Cancelled dialog sends cancellation response.
+- [x] Timeout closes dialog without duplicate response.
+- [x] Notify request creates toast.
+- [x] Status request creates/updates/removes status pill.
+- [x] Widget request renders above composer by default.
+- [x] Widget request renders below composer when requested.
+- [x] Set-title request updates active session title.
+- [x] Set-editor-text request replaces composer content.
+- [x] Approval inbox shows pending approval from background session.
+- [x] Approving from inbox sends response to correct session.
 
 ---
 

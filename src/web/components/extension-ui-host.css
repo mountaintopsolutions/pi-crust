@@ -1,0 +1,6 @@
+.extension-ui-host { display: grid; gap: 0.75rem; }
+.extension-ui-host [role="dialog"] { border: 1px solid #72a7ff; border-radius: 0.75rem; padding: 1rem; background: #171a21; display: grid; gap: 0.5rem; }
+.extension-widget { border: 1px dashed #475569; border-radius: 0.5rem; padding: 0.5rem; }
+[aria-label="Extension statuses"] { display: flex; gap: 0.5rem; }
+[aria-label="Extension statuses"] span { background: #1e293b; border-radius: 999px; padding: 0.2rem 0.55rem; }
+[aria-label="Approval inbox"] { border: 1px solid #f59e0b; border-radius: 0.5rem; padding: 0.5rem; }
