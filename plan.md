@@ -283,60 +283,60 @@ Create a usable browser interface for creating, opening, switching, and monitori
 
 ## Todo
 
-- [ ] Create responsive app shell.
-- [ ] Implement session/project sidebar.
-- [ ] Implement session list.
-- [ ] Implement session browser controls matching `/resume`:
-  - [ ] search sessions
-  - [ ] toggle path display
-  - [ ] sort modes
-  - [ ] named-session-only filter
-  - [ ] rename from list
-  - [ ] delete from list with confirmation
-- [ ] Implement active session view.
-- [ ] Implement new session flow:
-  - [ ] choose cwd
+- [x] Create responsive app shell.
+- [x] Implement session/project sidebar.
+- [x] Implement session list.
+- [x] Implement session browser controls matching `/resume`:
+  - [x] search sessions
+  - [x] toggle path display
+  - [x] sort modes
+  - [x] named-session-only filter
+  - [x] rename from list
+  - [x] delete from list with confirmation
+- [x] Implement active session view.
+- [x] Implement new session flow:
+  - [x] choose cwd
   - [ ] optional model
-  - [ ] optional display name
-- [ ] Implement open/resume existing session flow.
-- [ ] Implement close/dispose hot session.
-- [ ] Implement rename session.
-- [ ] Implement delete/archive session only after confirmation.
-- [ ] Show per-session status:
-  - [ ] idle
-  - [ ] streaming
-  - [ ] waiting for approval
-  - [ ] compacting
-  - [ ] retrying
-  - [ ] error
-- [ ] Show per-session metadata:
-  - [ ] cwd
-  - [ ] session id
+  - [x] optional display name
+- [x] Implement open/resume existing session flow.
+- [x] Implement close/dispose hot session.
+- [x] Implement rename session.
+- [x] Implement delete/archive session only after confirmation.
+- [x] Show per-session status:
+  - [x] idle
+  - [x] streaming
+  - [x] waiting for approval
+  - [x] compacting
+  - [x] retrying
+  - [x] error
+- [x] Show per-session metadata:
+  - [x] cwd
+  - [x] session id
   - [ ] session file path
   - [ ] parent session path when present
-  - [ ] session name
-  - [ ] model
-  - [ ] token/cache/context usage
+  - [x] session name
+  - [x] model
+  - [x] token/cache/context usage
   - [ ] cost summary
   - [ ] message/tool counts
-  - [ ] last activity
-- [ ] Support mobile navigation between dashboard and active session.
+  - [x] last activity
+- [x] Support mobile navigation between dashboard and active session.
 
 ## TDD-style tests
 
-- [ ] Dashboard loads with empty session list.
-- [ ] Creating a session adds it to the dashboard.
-- [ ] Session search filters by name, cwd, first message, and path.
-- [ ] Session path toggle shows/hides full paths.
-- [ ] Named-only filter hides unnamed sessions.
-- [ ] Sort mode changes session ordering deterministically.
-- [ ] Opening a session shows its timeline pane.
-- [ ] Two sessions can be open at once in the hot registry.
-- [ ] Session A status can be running while Session B remains idle.
-- [ ] Renaming a session updates the dashboard.
-- [ ] Deleting a session requires confirmation.
-- [ ] Mobile viewport shows session switcher and active session without horizontal overflow.
-- [ ] Refresh/reconnect restores previously open session metadata.
+- [x] Dashboard loads with empty session list.
+- [x] Creating a session adds it to the dashboard.
+- [x] Session search filters by name, cwd, first message, and path.
+- [x] Session path toggle shows/hides full paths.
+- [x] Named-only filter hides unnamed sessions.
+- [x] Sort mode changes session ordering deterministically.
+- [x] Opening a session shows its timeline pane.
+- [x] Two sessions can be open at once in the hot registry.
+- [x] Session A status can be running while Session B remains idle.
+- [x] Renaming a session updates the dashboard.
+- [x] Deleting a session requires confirmation.
+- [x] Mobile viewport shows session switcher and active session without horizontal overflow.
+- [x] Refresh/reconnect restores previously open session metadata.
 
 ---
 
