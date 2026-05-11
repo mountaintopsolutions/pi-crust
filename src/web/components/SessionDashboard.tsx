@@ -36,6 +36,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [deletePending, setDeletePending] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
+  const [promptErrorBySession, setPromptErrorBySession] = useState<Record<string, string | null>>({});
   const streamDraftIdsRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -230,8 +231,10 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
 
   async function handlePrompt(text: string, attachments: readonly ComposerAttachment[]) {
     if (!activeSession) return;
+    const sessionId = activeSession.id;
     const now = Date.now();
-    appendMessage(activeSession.id, {
+    setPromptErrorBySession((current) => ({ ...current, [sessionId]: null }));
+    appendMessage(sessionId, {
       id: `user-pending-${now}`,
       role: "user",
       text,
@@ -241,16 +244,16 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         alt: attachment.name,
       })),
     });
-    setSessions((current) => current.map((session) => session.id === activeSession.id ? { ...session, status: "streaming" } : session));
+    setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, status: "streaming" } : session));
     try {
-      const messages = await api.prompt(activeSession.id, text, attachments.map(toPromptAttachment));
+      const messages = await api.prompt(sessionId, text, attachments.map(toPromptAttachment));
       if (Array.isArray(messages) && messages.length > 0) {
-        setMessagesBySession((current) => ({ ...current, [activeSession.id]: messages.map(toTimelineMessage) }));
+        setMessagesBySession((current) => ({ ...current, [sessionId]: messages.map(toTimelineMessage) }));
       }
     } catch (caught) {
-      appendMessage(activeSession.id, { id: `error-${now}`, role: "custom", customLabel: "Error", text: errorMessage(caught) });
+      setPromptErrorBySession((current) => ({ ...current, [sessionId]: errorMessage(caught) }));
     } finally {
-      setSessions((current) => current.map((session) => session.id === activeSession.id ? { ...session, status: "idle" } : session));
+      setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, status: "idle" } : session));
     }
   }
 
@@ -304,18 +307,20 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
 
   async function handleBash(command: string, includeInContext: boolean) {
     if (!activeSession) return;
+    const sessionId = activeSession.id;
     const now = Date.now();
-    appendMessage(activeSession.id, {
+    setPromptErrorBySession((current) => ({ ...current, [sessionId]: null }));
+    appendMessage(sessionId, {
       id: `bash-${now}`,
       role: "custom",
       customLabel: includeInContext ? "Shell command" : "Hidden shell command",
       text: `$ ${command}\nSending to Pi...`,
     });
     try {
-      const messages = await api.bash(activeSession.id, command, includeInContext);
-      setMessagesBySession((current) => ({ ...current, [activeSession.id]: messages.map(toTimelineMessage) }));
+      const messages = await api.bash(sessionId, command, includeInContext);
+      setMessagesBySession((current) => ({ ...current, [sessionId]: messages.map(toTimelineMessage) }));
     } catch (caught) {
-      appendMessage(activeSession.id, { id: `error-${now}`, role: "custom", customLabel: "Error", text: errorMessage(caught) });
+      setPromptErrorBySession((current) => ({ ...current, [sessionId]: errorMessage(caught) }));
     }
   }
 
@@ -448,6 +453,17 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 messages={messagesBySession[activeSession.id] ?? []}
                 streaming={activeSession.status === "streaming"}
               />
+              {promptErrorBySession[activeSession.id] ? (
+                <div className="prompt-error-banner" role="alert" aria-label="Prompt error">
+                  <div className="prompt-error-text">
+                    <strong>Prompt failed.</strong> <span>{promptErrorBySession[activeSession.id]}</span>
+                  </div>
+                  <div className="prompt-error-actions">
+                    <button type="button" onClick={() => void handleSlashCommand("compact", "")}>Compact</button>
+                    <button type="button" onClick={() => setPromptErrorBySession((current) => ({ ...current, [activeSession.id]: null }))}>Dismiss</button>
+                  </div>
+                </div>
+              ) : null}
               <PromptComposer
                 sessionId={activeSession.id}
                 isStreaming={activeSession.status === "streaming"}
