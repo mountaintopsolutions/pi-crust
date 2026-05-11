@@ -1,0 +1,68 @@
+@font-face {
+  font-family: 'Booton';
+  src: url('./fonts/BootonVF.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Booton';
+  src: url('./fonts/BootonItalicsVF.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --gold-100: #FBF6E2; --gold-200: #F7ECC5; --gold-500: #ECD06F; --gold-600: #BDA659; --gold-700: #8E7D43;
+  --blue-100: #EEE4FB; --blue-200: #DDC8F8; --blue-500: #A976ED; --blue-600: #875EBE; --blue-800: #442F5F;
+  --blue-accent: #A976ED; --blue-accent-dark: #875EBE; --blue-focus: #DDC8F8;
+  --red-500: #D14A25; --red-600: #8C381A;
+  --green-500: #76A47D;
+  --gray-050: #FDFDFD; --gray-060: #F6F7F6; --gray-080: #EDEEED; --gray-100: #E8EAE9; --gray-200: #D2D5D2; --gray-300: #BDC0BC; --gray-400: #A7AAA5; --gray-500: #92958E; --gray-600: #7D8078; --gray-700: #676B61; --gray-800: #52564A; --gray-900: #3C4033; --gray-1000: #272B1D;
+  --black-900: #111606; --black-1000: #000000; --white-000: #FFFFFF;
+
+  --background-1: var(--white-000);
+  --background-2: var(--gray-060);
+  --hairline: var(--gray-100);
+  --text-primary: var(--black-900);
+  --text-secondary: var(--gray-700);
+  --text-primary-inverted: var(--gray-050);
+  --accent: var(--blue-accent);
+  --warning: var(--gold-600);
+  --error: var(--red-500);
+  --success: var(--green-500);
+  --tile: var(--white-000);
+
+  --font-sans: 'Booton', Inter, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --radius-pill: 9999px;
+  --radius-lg: 16px;
+  --radius-md: 8px;
+  --radius-sm: 3px;
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-2: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-3: 0 12px 32px rgba(0,0,0,0.12);
+  --sidebar-w: 280px;
+  --composer-max: 760px;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--background-1);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+input, textarea, select { font: inherit; color: inherit; }
+code, pre, .mono { font-family: var(--font-mono); font-size: 13px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-300); border: 2px solid transparent; background-clip: content-box; }

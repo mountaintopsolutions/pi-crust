@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SessionCardData, SessionDashboardApi } from "../api/session-api.js";
+import iconBlack from "../assets-icon-black.svg";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
 import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
 import "./session-dashboard.css";
@@ -147,6 +148,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     <main className="session-dashboard">
       <aside className="session-sidebar" aria-label="Sessions">
         <header>
+          <img src={iconBlack} alt="" aria-hidden="true" />
           <h1>pi remote</h1>
           <p>{sessions.length} sessions</p>
         </header>

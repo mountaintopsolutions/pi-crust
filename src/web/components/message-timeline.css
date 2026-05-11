@@ -1,74 +1,134 @@
 .message-timeline {
-  display: grid;
-  gap: 1rem;
-  padding: 1rem;
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  justify-content: center;
+  align-content: start;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .message-card {
-  border: 1px solid #2f3440;
-  border-radius: 0.9rem;
-  padding: 1rem;
-  background: #171a21;
+  width: 100%;
+  max-width: var(--composer-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
-.message-card.user { background: #20242d; }
-.message-card.custom { background: #1d2430; }
-.message-card.summary { background: #201f2d; }
+.message-card::before {
+  content: "π";
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--blue-accent);
+  background: var(--white-000);
+  border: 1px solid var(--hairline);
+}
 
-.message-header,
-.message-footer {
+.message-card.user::before {
+  content: "U";
+  background: var(--gray-1000);
+  color: var(--gray-050);
+  border-color: var(--gray-1000);
+  font-weight: 600;
+}
+
+.message-card.custom::before { content: "•"; color: var(--gray-700); background: var(--gray-080); }
+.message-card.summary::before { content: "Σ"; color: var(--gold-700); background: var(--gold-100); }
+
+.message-card > * { grid-column: 2; }
+.message-card > header { grid-column: 2; }
+
+.message-header {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
 }
+
+.message-header strong { font-weight: 500; }
 
 .message-footer {
-  margin-top: 0.75rem;
-  color: #aab2c0;
-  font-size: 0.9rem;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 11.5px;
 }
+
+.message-footer span {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  background: var(--gray-060);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+}
+
+.message-footer button,
+.code-block button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-radius: 6px;
+}
+
+.message-footer button:hover,
+.code-block button:hover { background: var(--gray-080); color: var(--black-900); }
 
 .badge {
-  border-radius: 999px;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.8rem;
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  font-size: 11px;
 }
+.badge.warning { color: var(--gold-700); background: var(--gold-100); }
+.badge.error { color: var(--red-600); background: rgba(209,74,37,0.08); }
+.message-error { color: var(--red-600); }
 
-.badge.warning { background: #6a4d00; }
-.badge.error { background: #6a1d1d; }
-.message-error { color: #ff9d9d; }
-
-.message-images {
-  display: flex;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.message-images img {
-  max-width: 12rem;
-  max-height: 12rem;
-  border-radius: 0.5rem;
-}
+.message-images { display: flex; gap: 8px; margin: 8px 0; }
+.message-images img { max-width: 12rem; max-height: 12rem; border-radius: 8px; border: 1px solid var(--hairline); }
 
 .thinking-block {
-  margin: 0.75rem 0;
-  color: #c4b5fd;
+  margin: 8px 0;
+  color: var(--blue-600);
+  background: var(--blue-100);
+  border: 1px solid var(--blue-200);
+  border-radius: 8px;
+  padding: 8px 10px;
 }
+
+.markdown-lite {
+  color: var(--text-primary);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.markdown-lite p { margin: 0 0 8px; font-size: inherit; }
+.markdown-lite p:last-child { margin-bottom: 0; }
+.markdown-lite h3 { margin: 0 0 8px; font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
 
 .code-block {
-  border: 1px solid #3b4150;
-  border-radius: 0.6rem;
-  background: #0f1117;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--gray-060);
   overflow: auto;
+  margin: 8px 0;
 }
 
-.code-block button {
-  float: right;
-  margin: 0.5rem;
-}
-
-pre {
-  white-space: pre-wrap;
-  padding: 0.75rem;
-}
+.code-block button { float: right; margin: 6px; }
+pre { white-space: pre-wrap; padding: 12px; margin: 0; }
