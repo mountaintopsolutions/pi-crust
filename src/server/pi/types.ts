@@ -1,3 +1,5 @@
+import type { ExtensionUiRequest, ExtensionUiResponse, PiWireEvent } from "../../shared/protocol.js";
+
 export type SessionStatus = "idle" | "running" | "compacting" | "retrying" | "error";
 
 export interface SessionListItem {
@@ -43,10 +45,12 @@ export interface ModelInfo {
 }
 
 export type PiEvent =
+  | PiWireEvent
   | { readonly type: "agent_start" }
   | { readonly type: "agent_end"; readonly messages: readonly SessionMessage[] }
   | { readonly type: "message"; readonly message: SessionMessage }
-  | { readonly type: "error"; readonly error: string };
+  | { readonly type: "error"; readonly error: string }
+  | { readonly type: "extension_ui_request"; readonly id: string; readonly method: ExtensionUiRequest["method"]; readonly [key: string]: unknown };
 
 export interface SessionMessage {
   readonly role: "user" | "assistant" | "system" | "tool";
@@ -98,6 +102,7 @@ export interface PiSessionHandle {
   abort(): Promise<void>;
   setSessionName(name: string): Promise<SessionState>;
   setModel(provider: string, modelId: string): Promise<SessionState>;
+  respondToExtensionUi?(response: ExtensionUiResponse): Promise<void>;
   subscribe(listener: PiEventListener): Unsubscribe;
   dispose(): Promise<void>;
 }
