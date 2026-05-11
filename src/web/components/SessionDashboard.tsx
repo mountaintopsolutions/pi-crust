@@ -658,6 +658,7 @@ function applyRealtimeEvent(
           args: isRecord(event.args) ? event.args : {},
           status: "running",
           output: "",
+          startedAt: Date.now(),
         },
       }),
     }));
@@ -680,6 +681,7 @@ function applyRealtimeEvent(
           args: {},
           status: event.type === "tool_execution_end" ? (event.isError ? "error" : "success") : "running",
           output: toolResultText(result),
+          ...(event.type === "tool_execution_end" ? { completedAt: Date.now() } : {}),
         },
       }),
     }));

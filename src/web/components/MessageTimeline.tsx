@@ -15,6 +15,8 @@ export interface TimelineToolDetails {
   readonly args: Record<string, unknown>;
   readonly status: "running" | "success" | "error";
   readonly output: string;
+  readonly startedAt?: number;
+  readonly completedAt?: number;
 }
 
 export interface TimelineMessage {
@@ -308,7 +310,7 @@ function ToolCard({ tool }: { readonly tool: TimelineToolDetails }) {
           {hasDedicatedVerb(tool.name) ? null : <> <code>{tool.name}</code></>}
           {summarizeArgs(tool.args) ? <> · <span className="tool-args">{summarizeArgs(tool.args)}</span></> : null}
         </span>
-        <span className="tool-status-text">{statusLabel(tool.status)}</span>
+        <span className="tool-status-text">{statusLabel(tool)}</span>
       </summary>
       {tool.output ? <pre>{tool.output}</pre> : null}
     </details>
@@ -321,10 +323,23 @@ function toolIcon(status: TimelineToolDetails["status"]): string {
   return "✓";
 }
 
-function statusLabel(status: TimelineToolDetails["status"]): string {
-  if (status === "running") return "running…";
-  if (status === "error") return "failed";
-  return "done";
+function statusLabel(tool: TimelineToolDetails): string {
+  if (tool.status === "running") return "running…";
+  if (tool.status === "error") return "failed";
+  const duration = formatToolDuration(tool);
+  return duration ?? "done";
+}
+
+function formatToolDuration(tool: TimelineToolDetails): string | null {
+  if (tool.startedAt === undefined || tool.completedAt === undefined) return null;
+  const ms = Math.max(0, tool.completedAt - tool.startedAt);
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)}s`;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remSeconds = Math.round(seconds - minutes * 60);
+  return `${minutes}m ${remSeconds}s`;
 }
 
 const TOOL_VERBS: Record<string, string> = {
