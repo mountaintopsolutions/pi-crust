@@ -316,7 +316,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 statusText={activeSession.status}
                 statusCwd={activeSession.cwd}
                 {...(activeSession.model === undefined ? {} : { statusModel: activeSession.model })}
-                {...(activeSession.tokenSummary === undefined ? {} : { statusTokens: activeSession.tokenSummary })}
+                statusTokens={formatStats(activeSession.stats, activeSession.tokenSummary)}
                 onPrompt={handlePrompt}
                 onSteer={handleSteer}
                 onFollowUp={handleFollowUp}
@@ -357,6 +357,31 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
 
 function basename(value: string): string {
   return value.split("/").filter(Boolean).at(-1) ?? value;
+}
+
+function formatStats(
+  stats: import("../api/session-api.js").SessionCardStats | undefined,
+  tokenSummary: string | undefined,
+): string {
+  if (!stats) return tokenSummary ?? "0 tokens";
+  const parts = [
+    `↑${compactNumber(stats.inputTokens)}`,
+    `↓${compactNumber(stats.outputTokens)}`,
+    `r${compactNumber(stats.cacheReadTokens)}`,
+    `w${compactNumber(stats.cacheWriteTokens)}`,
+    `$${stats.cost.toFixed(4)}`,
+  ];
+  if (stats.contextPercent !== null) parts.push(`${Math.max(0, Math.min(100, stats.contextPercent))}%`);
+  if (stats.contextWindow !== null) parts.push(compactNumber(stats.contextWindow));
+  return parts.join(" ");
+}
+
+function compactNumber(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value < 1000) return String(value);
+  if (value < 10_000) return `${(value / 1000).toFixed(1)}k`;
+  if (value < 1_000_000) return `${Math.round(value / 1000)}k`;
+  return `${(value / 1_000_000).toFixed(1)}M`;
 }
 
 function SidebarToggleGlyph() {

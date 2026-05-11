@@ -46,10 +46,14 @@
   min-width: 0;
   overflow: hidden;
   backdrop-filter: blur(8px);
+  transition: opacity 160ms ease;
 }
 
 .session-dashboard.collapsed .session-sidebar {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .session-sidebar > header {

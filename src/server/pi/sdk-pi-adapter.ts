@@ -91,15 +91,36 @@ class SdkPiSessionHandle implements PiSessionHandle {
 
   async getState(): Promise<SessionState> {
     const sdkModel = this.session.model;
-    const messages = Array.isArray(this.session.messages) ? this.session.messages : [];
-    const totalTokens = messages.reduce((sum: number, message: any) => {
+    const messages: any[] = Array.isArray(this.session.messages) ? this.session.messages : [];
+    const aggregated = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+    for (const message of messages) {
       const usage = message?.usage;
-      if (!usage) return sum;
-      const candidate = Number(
-        usage.totalTokens ?? usage.total ?? ((usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)),
-      );
-      return Number.isFinite(candidate) ? sum + candidate : sum;
-    }, 0);
+      if (!usage) continue;
+      aggregated.input += Number(usage.input ?? 0);
+      aggregated.output += Number(usage.output ?? 0);
+      aggregated.cacheRead += Number(usage.cacheRead ?? 0);
+      aggregated.cacheWrite += Number(usage.cacheWrite ?? 0);
+      aggregated.cost += Number(usage?.cost?.total ?? 0);
+    }
+    const totalTokens = aggregated.input + aggregated.output + aggregated.cacheRead + aggregated.cacheWrite;
+
+    let contextTokens: number | null = null;
+    let contextPercent: number | null = null;
+    let contextWindow: number | null = sdkModel?.contextWindow ? Number(sdkModel.contextWindow) : null;
+    try {
+      if (typeof this.session.getSessionStats === "function") {
+        const live = await this.session.getSessionStats();
+        const ctx = live?.contextUsage;
+        if (ctx) {
+          if (typeof ctx.tokens === "number") contextTokens = ctx.tokens;
+          if (typeof ctx.percent === "number") contextPercent = Math.round(ctx.percent);
+          if (typeof ctx.contextWindow === "number") contextWindow = ctx.contextWindow;
+        }
+      }
+    } catch {
+      // optional; ignore failures
+    }
+
     return {
       id: this.id,
       cwd: this.cwd,
@@ -109,6 +130,16 @@ class SdkPiSessionHandle implements PiSessionHandle {
       ...(sdkModel ? { modelProvider: String(sdkModel.provider ?? ""), model: String(sdkModel.id ?? "") } : {}),
       messageCount: messages.length,
       totalTokens,
+      stats: {
+        inputTokens: aggregated.input,
+        outputTokens: aggregated.output,
+        cacheReadTokens: aggregated.cacheRead,
+        cacheWriteTokens: aggregated.cacheWrite,
+        cost: aggregated.cost,
+        contextTokens,
+        contextPercent,
+        contextWindow,
+      },
       lastActivity: Date.now(),
     };
   }

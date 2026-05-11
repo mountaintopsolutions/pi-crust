@@ -7,7 +7,19 @@ export interface SessionCardData {
   readonly model?: string;
   readonly status: SessionCardStatus;
   readonly tokenSummary?: string;
+  readonly stats?: SessionCardStats;
   readonly lastActivity: number;
+}
+
+export interface SessionCardStats {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheWriteTokens: number;
+  readonly cost: number;
+  readonly contextTokens: number | null;
+  readonly contextPercent: number | null;
+  readonly contextWindow: number | null;
 }
 
 export interface NewSessionInput {

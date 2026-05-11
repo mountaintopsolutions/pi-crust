@@ -177,6 +177,7 @@ function toSessionCard(state: Awaited<ReturnType<import("./pi/types.js").PiSessi
     tokenSummary: state.totalTokens === undefined || state.totalTokens === null
       ? undefined
       : `${formatTokens(state.totalTokens)} tokens`,
+    stats: state.stats,
     lastActivity: state.lastActivity,
   };
 }

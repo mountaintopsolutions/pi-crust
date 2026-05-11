@@ -19,7 +19,19 @@ export interface SessionState {
   readonly modelProvider?: string;
   readonly messageCount: number;
   readonly totalTokens?: number;
+  readonly stats?: SessionStats;
   readonly lastActivity: number;
+}
+
+export interface SessionStats {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheWriteTokens: number;
+  readonly cost: number;
+  readonly contextTokens: number | null;
+  readonly contextPercent: number | null;
+  readonly contextWindow: number | null;
 }
 
 export interface ModelInfo {

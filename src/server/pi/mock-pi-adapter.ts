@@ -131,6 +131,17 @@ class MockPiSessionHandle implements PiSessionHandle {
         ? { modelProvider: this.modelProvider, model: `${this.modelProvider}/${this.modelId}` }
         : {}),
       messageCount: this.messages.length,
+      totalTokens: 0,
+      stats: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cost: 0,
+        contextTokens: 0,
+        contextPercent: 0,
+        contextWindow: 200_000,
+      },
       lastActivity: this.lastActivity,
     };
   }

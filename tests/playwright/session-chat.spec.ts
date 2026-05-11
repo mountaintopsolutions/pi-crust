@@ -59,7 +59,7 @@ test('streams the user and assistant messages over SSE during a turn', async ({ 
   await expect(page.getByText('Mock response to: streaming hello')).toBeVisible();
 });
 
-test('shows status row beneath composer with cwd, model, tokens', async ({ page }) => {
+test('shows status row beneath composer with cwd, model, and TUI-style stats', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Seeded session/ }).click();
 
@@ -68,15 +68,25 @@ test('shows status row beneath composer with cwd, model, tokens', async ({ page 
   await expect(status).toContainText('idle');
   await expect(status).toContainText('pi-remote-control');
   await expect(status).toContainText('no model selected');
+  await expect(status).toContainText('↑0');
+  await expect(status).toContainText('↓0');
+  await expect(status).toContainText('$0.0000');
+  await expect(status).toContainText('200k');
 });
 
-test('sidebar collapses and expands via the toggle', async ({ page }) => {
+test('sidebar collapses without shrinking the main area', async ({ page }) => {
   await page.goto('/');
   const sidebar = page.getByRole('complementary', { name: 'Sessions' });
+  const main = page.getByRole('region', { name: 'Active session' });
   await expect(sidebar).toBeVisible();
+
+  const openWidth = await main.evaluate((node) => (node as HTMLElement).getBoundingClientRect().width);
 
   await page.getByRole('button', { name: 'Collapse sidebar' }).click();
   await expect(sidebar).toBeHidden();
+
+  const collapsedWidth = await main.evaluate((node) => (node as HTMLElement).getBoundingClientRect().width);
+  expect(collapsedWidth).toBeGreaterThan(openWidth);
 
   await page.getByRole('button', { name: 'Expand sidebar' }).click();
   await expect(sidebar).toBeVisible();
