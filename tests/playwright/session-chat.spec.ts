@@ -26,18 +26,37 @@ test('shows existing session history and renders markdown when a session is sele
   await expect(page.locator('.code-block')).toContainText('const answer = 42;');
 });
 
-test('shows a turn copy button and age below each completed turn', async ({ page, context }) => {
+test('default copy puts only the last assistant text on the clipboard', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
   await page.getByRole('button', { name: /Seeded session/ }).click();
 
-  const footers = page.getByLabel('Turn actions');
-  await expect(footers.first()).toBeVisible();
-  const copyBtn = footers.first().getByRole('button', { name: 'Copy turn as markdown' });
-  await expect(copyBtn).toBeVisible();
+  const footer = page.getByLabel('Turn actions').first();
+  await expect(footer).toBeVisible();
+  await footer.getByRole('button', { name: 'Copy assistant response' }).click();
+  await expect(footer.getByText('copied', { exact: true })).toBeVisible();
 
-  await copyBtn.click();
-  await expect(footers.first().getByText('copied')).toBeVisible();
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboard).not.toMatch(/^\*\*You:/);
+  expect(clipboard).not.toContain('previously sent hello');
+  expect(clipboard).toContain('## Plan');
+});
+
+test('overflow menu can copy the entire turn as markdown', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Seeded session/ }).click();
+
+  const footer = page.getByLabel('Turn actions').first();
+  await footer.getByRole('button', { name: 'More copy options' }).click();
+  await footer.getByRole('menuitem', { name: /Copy entire turn as markdown/ }).click();
+  await expect(footer.getByText('copied turn')).toBeVisible();
+
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboard).toContain('**You:**');
+  expect(clipboard).toContain('previously sent hello');
+  expect(clipboard).toContain('**Assistant:**');
+  expect(clipboard).toContain('## Plan');
 });
 
 test('preserves the active session in the URL across reloads', async ({ page }) => {

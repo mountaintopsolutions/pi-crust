@@ -144,8 +144,10 @@ function groupTurns(messages: readonly TimelineMessage[]): TurnGroup[] {
 }
 
 function TurnFooter({ turn }: { readonly turn: TurnGroup }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "reply" | "turn">("");
   const [now, setNow] = useState(() => Date.now());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60_000);
@@ -154,32 +156,98 @@ function TurnFooter({ turn }: { readonly turn: TurnGroup }) {
 
   useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1500);
+    const t = setTimeout(() => setCopied(""), 1500);
     return () => clearTimeout(t);
   }, [copied]);
 
-  async function handleCopy() {
-    const markdown = turnToMarkdown(turn);
-    await copyText(markdown);
-    setCopied(true);
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  const replyText = lastAssistantTextOf(turn);
+  const canCopyReply = replyText.length > 0;
+
+  async function copyReply() {
+    if (!canCopyReply) return;
+    await copyText(replyText);
+    setCopied("reply");
+  }
+
+  async function copyEntireTurn() {
+    await copyText(turnToMarkdown(turn));
+    setCopied("turn");
+    setMenuOpen(false);
   }
 
   return (
     <div className="turn-footer" aria-label="Turn actions">
-      <button type="button" className="turn-copy" aria-label="Copy turn as markdown" onClick={() => void handleCopy()}>
-        <ClipboardGlyph />
+      <button
+        type="button"
+        className="turn-copy"
+        aria-label="Copy assistant response"
+        onClick={() => void copyReply()}
+        disabled={!canCopyReply}
+      >
+        <CopyGlyph />
       </button>
-      {copied ? <span className="turn-copied" role="status">copied</span> : null}
+      <div className="turn-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="turn-more"
+          aria-label="More copy options"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <MoreGlyph />
+        </button>
+        {menuOpen ? (
+          <div className="turn-menu-popover" role="menu">
+            <button type="button" role="menuitem" onClick={() => void copyEntireTurn()}>
+              Copy entire turn as markdown
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {copied ? (
+        <span className="turn-copied" role="status">{copied === "turn" ? "copied turn" : "copied"}</span>
+      ) : null}
       {turn.lastTimestamp ? <span className="turn-age" title={new Date(turn.lastTimestamp).toLocaleString()}>{relativeTime(turn.lastTimestamp, now)}</span> : null}
     </div>
   );
 }
 
-function ClipboardGlyph() {
+function lastAssistantTextOf(turn: TurnGroup): string {
+  for (let i = turn.messages.length - 1; i >= 0; i--) {
+    const message = turn.messages[i];
+    if (message && message.role === "assistant" && message.text.trim()) {
+      return message.text.trim();
+    }
+  }
+  return "";
+}
+
+function CopyGlyph() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="3" width="8" height="10" rx="1.5" />
-      <path d="M6 3v-.5A1.5 1.5 0 0 1 7.5 1h1A1.5 1.5 0 0 1 10 2.5V3" />
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M11.5 5.5V4A1.5 1.5 0 0 0 10 2.5H4A1.5 1.5 0 0 0 2.5 4v6A1.5 1.5 0 0 0 4 11.5h1.5" />
+    </svg>
+  );
+}
+
+function MoreGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="12.5" cy="8" r="1.25" />
     </svg>
   );
 }

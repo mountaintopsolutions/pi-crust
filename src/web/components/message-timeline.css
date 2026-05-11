@@ -26,7 +26,8 @@
   font-size: 10.5px;
 }
 
-.turn-footer .turn-copy {
+.turn-footer .turn-copy,
+.turn-footer .turn-more {
   width: 22px;
   height: 22px;
   display: grid;
@@ -39,7 +40,40 @@
   cursor: pointer;
 }
 
-.turn-footer .turn-copy:hover { background: var(--gray-080); color: var(--text-primary); }
+.turn-footer .turn-copy:hover,
+.turn-footer .turn-more:hover { background: var(--gray-080); color: var(--text-primary); }
+.turn-footer .turn-copy:disabled { opacity: 0.4; cursor: default; }
+.turn-footer .turn-copy:disabled:hover { background: transparent; color: var(--gray-500); }
+
+.turn-footer .turn-menu { position: relative; display: inline-flex; }
+
+.turn-menu-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: var(--white-000);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: var(--shadow-2);
+  padding: 4px;
+  z-index: 60;
+}
+
+.turn-menu-popover [role="menuitem"] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.turn-menu-popover [role="menuitem"]:hover { background: var(--gray-080); }
 
 .turn-footer .turn-copied { color: var(--green-500); font-style: italic; }
 .turn-footer .turn-age { font-variant-numeric: tabular-nums; }
