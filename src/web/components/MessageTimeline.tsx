@@ -49,7 +49,7 @@ export function MessageTimeline({ messages, hideThinking = false, autoScroll = t
     if (autoScroll && typeof endRef.current?.scrollIntoView === "function") {
       endRef.current.scrollIntoView({ block: "end" });
     }
-  }, [autoScroll, messages.length]);
+  }, [autoScroll, messages]);
 
   return (
     <section className="message-timeline" aria-label="Message timeline">

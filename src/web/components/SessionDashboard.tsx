@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SessionCardData, SessionDashboardApi } from "../api/session-api.js";
+import type { Dispatch, SetStateAction } from "react";
+import type { WireMessage } from "../../shared/protocol.js";
+import type { DashboardMessage, DashboardToolDetails, SessionCardData, SessionDashboardApi } from "../api/session-api.js";
 import iconBlack from "../assets-icon-black.svg";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
 import { ModelPicker } from "./ModelPicker.js";
@@ -33,6 +35,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [deletePending, setDeletePending] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
+  const streamDraftIdsRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -118,8 +121,28 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
       }, 80);
     };
 
+    const applyStreamEvent = (event: unknown) => {
+      if (cancelled || !isRecord(event) || typeof event.type !== "string") return;
+      if (applyRealtimeEvent(activeSessionId, event, setMessagesBySession, streamDraftIdsRef.current)) {
+        return;
+      }
+      if (event.type === "agent_start") {
+        setSessions((current) => current.map((session) => session.id === activeSessionId ? { ...session, status: "streaming" } : session));
+        return;
+      }
+      if (event.type === "agent_end") {
+        delete streamDraftIdsRef.current[activeSessionId];
+        setSessions((current) => current.map((session) => session.id === activeSessionId ? { ...session, status: "idle" } : session));
+        scheduleRefresh();
+        return;
+      }
+      if (event.type === "message_end" || event.type === "tool_execution_end") {
+        scheduleRefresh();
+      }
+    };
+
     void refresh();
-    const unsubscribe = api.streamEvents ? api.streamEvents(activeSessionId, scheduleRefresh) : () => undefined;
+    const unsubscribe = api.streamEvents ? api.streamEvents(activeSessionId, applyStreamEvent) : () => undefined;
 
     return () => {
       cancelled = true;
@@ -478,6 +501,222 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
       />
     </main>
   );
+}
+
+type MessageSetter = Dispatch<SetStateAction<Record<string, TimelineMessage[]>>>;
+
+type LegacyMessageEvent = {
+  readonly type: "message";
+  readonly message: {
+    readonly role: string;
+    readonly content: string;
+    readonly timestamp?: number;
+    readonly tool?: DashboardToolDetails;
+  };
+};
+
+function applyRealtimeEvent(
+  sessionId: string,
+  event: Record<string, unknown>,
+  setMessagesBySession: MessageSetter,
+  streamDraftIds: Record<string, string>,
+): boolean {
+  if (event.type === "message_start" && isRecord(event.message)) {
+    const message = event.message as unknown as WireMessage;
+    if (message.role === "assistant") {
+      const draftId = draftIdForSession(sessionId, streamDraftIds);
+      setMessagesBySession((current) => ({
+        ...current,
+        [sessionId]: upsertTimelineMessage(current[sessionId] ?? [], wireMessageToTimeline(draftId, message, true)),
+      }));
+      return true;
+    }
+    if (message.role === "user") {
+      setMessagesBySession((current) => ({
+        ...current,
+        [sessionId]: appendDedupeTimelineMessage(current[sessionId] ?? [], wireMessageToTimeline(`user-${message.timestamp ?? Date.now()}`, message, false)),
+      }));
+      return true;
+    }
+  }
+
+  if (event.type === "message_update" && isRecord(event.assistantMessageEvent)) {
+    const assistantEvent = event.assistantMessageEvent;
+    const deltaType = assistantEvent.type;
+    const delta = assistantEvent.delta;
+    if ((deltaType === "text_delta" || deltaType === "thinking_delta") && typeof delta === "string") {
+      const draftId = draftIdForSession(sessionId, streamDraftIds);
+      setMessagesBySession((current) => ({
+        ...current,
+        [sessionId]: appendAssistantDelta(current[sessionId] ?? [], draftId, deltaType, delta),
+      }));
+      return true;
+    }
+  }
+
+  if (event.type === "message_end" && isRecord(event.message)) {
+    const message = event.message as unknown as WireMessage;
+    if (message.role === "assistant") {
+      const draftId = streamDraftIds[sessionId] ?? draftIdForSession(sessionId, streamDraftIds);
+      delete streamDraftIds[sessionId];
+      setMessagesBySession((current) => ({
+        ...current,
+        [sessionId]: upsertTimelineMessage(current[sessionId] ?? [], wireMessageToTimeline(draftId, message, false)),
+      }));
+      return false;
+    }
+  }
+
+  if (event.type === "message" && isRecord(event.message)) {
+    const legacy = event as LegacyMessageEvent;
+    setMessagesBySession((current) => ({
+      ...current,
+      [sessionId]: appendDedupeTimelineMessage(current[sessionId] ?? [], legacyMessageToTimeline(legacy.message)),
+    }));
+    return true;
+  }
+
+  if (event.type === "tool_execution_start" && typeof event.toolCallId === "string" && typeof event.toolName === "string") {
+    const toolCallId = event.toolCallId;
+    const toolName = event.toolName;
+    setMessagesBySession((current) => ({
+      ...current,
+      [sessionId]: upsertTimelineMessage(current[sessionId] ?? [], {
+        id: `tool-${toolCallId}`,
+        role: "tool",
+        text: "",
+        tool: {
+          id: toolCallId,
+          name: toolName,
+          args: isRecord(event.args) ? event.args : {},
+          status: "running",
+          output: "",
+        },
+      }),
+    }));
+    return true;
+  }
+
+  if ((event.type === "tool_execution_update" || event.type === "tool_execution_end") && typeof event.toolCallId === "string" && typeof event.toolName === "string") {
+    const toolCallId = event.toolCallId;
+    const toolName = event.toolName;
+    const result = event.type === "tool_execution_update" ? event.partialResult : event.result;
+    setMessagesBySession((current) => ({
+      ...current,
+      [sessionId]: upsertTimelineMessage(current[sessionId] ?? [], {
+        id: `tool-${toolCallId}`,
+        role: "tool",
+        text: "",
+        tool: {
+          id: toolCallId,
+          name: toolName,
+          args: {},
+          status: event.type === "tool_execution_end" ? (event.isError ? "error" : "success") : "running",
+          output: toolResultText(result),
+        },
+      }),
+    }));
+    return event.type === "tool_execution_update";
+  }
+
+  return false;
+}
+
+function draftIdForSession(sessionId: string, streamDraftIds: Record<string, string>): string {
+  const existing = streamDraftIds[sessionId];
+  if (existing) return existing;
+  const next = `assistant-stream-${sessionId}-${Date.now()}`;
+  streamDraftIds[sessionId] = next;
+  return next;
+}
+
+function appendAssistantDelta(
+  messages: readonly TimelineMessage[],
+  draftId: string,
+  deltaType: "text_delta" | "thinking_delta",
+  delta: string,
+): TimelineMessage[] {
+  const existing = messages.find((message) => message.id === draftId);
+  const base: TimelineMessage = existing ?? { id: draftId, role: "assistant", text: "", provider: "pi" };
+  const updated: TimelineMessage = deltaType === "text_delta"
+    ? { ...base, text: `${base.text}${delta}` }
+    : { ...base, thinking: `${base.thinking ?? ""}${delta}` };
+  return upsertTimelineMessage(messages, updated);
+}
+
+function upsertTimelineMessage(messages: readonly TimelineMessage[], message: TimelineMessage): TimelineMessage[] {
+  const index = messages.findIndex((existing) => existing.id === message.id);
+  if (index === -1) return [...messages, message];
+  return [...messages.slice(0, index), mergeTimelineMessage(messages[index]!, message), ...messages.slice(index + 1)];
+}
+
+function mergeTimelineMessage(previous: TimelineMessage, next: TimelineMessage): TimelineMessage {
+  if (previous.role === "tool" && previous.tool && next.tool) {
+    return {
+      ...previous,
+      ...next,
+      tool: {
+        ...previous.tool,
+        ...next.tool,
+        args: Object.keys(next.tool.args).length ? next.tool.args : previous.tool.args,
+      },
+    };
+  }
+  return { ...previous, ...next };
+}
+
+function appendDedupeTimelineMessage(messages: readonly TimelineMessage[], message: TimelineMessage): TimelineMessage[] {
+  const last = messages.at(-1);
+  if (last?.role === message.role && last.text === message.text) return [...messages];
+  return [...messages, message];
+}
+
+function wireMessageToTimeline(id: string, message: WireMessage, forceAssistantProvider: boolean): TimelineMessage {
+  const role = timelineRole(message.role);
+  return {
+    id,
+    role,
+    text: contentText(message.content),
+    ...(forceAssistantProvider || role === "assistant" ? { provider: "pi" } : {}),
+  };
+}
+
+function legacyMessageToTimeline(message: LegacyMessageEvent["message"]): TimelineMessage {
+  const role = timelineRole(message.role);
+  return {
+    id: `${message.timestamp ?? Date.now()}-${role}`,
+    role,
+    text: message.content,
+    ...(role === "assistant" ? { provider: "pi" } : {}),
+    ...(message.tool === undefined ? {} : { tool: message.tool }),
+  };
+}
+
+function timelineRole(role: string): TimelineMessage["role"] {
+  if (role === "assistant" || role === "user" || role === "tool") return role;
+  return "custom";
+}
+
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((block) => {
+      if (block && typeof block === "object" && "text" in block) return String((block as { text: unknown }).text);
+      if (block && typeof block === "object" && "thinking" in block) return String((block as { thinking: unknown }).thinking);
+      if (block && typeof block === "object" && "type" in block && (block as { type?: unknown }).type === "toolCall") return "";
+      return JSON.stringify(block);
+    }).filter(Boolean).join("\n");
+  }
+  return content === undefined ? "" : JSON.stringify(content);
+}
+
+function toolResultText(result: unknown): string {
+  if (!isRecord(result) || !Array.isArray(result.content)) return "";
+  return result.content.map((item) => isRecord(item) ? String(item.text ?? "") : "").join("\n");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function basename(value: string): string {

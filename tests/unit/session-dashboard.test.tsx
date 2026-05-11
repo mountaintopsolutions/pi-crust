@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeEach(() => {
@@ -101,6 +101,45 @@ describe("SessionDashboard", () => {
     fireEvent.change(screen.getByLabelText("Sort sessions"), { target: { value: "name" } });
     expect(screen.getByLabelText("Sort sessions")).toHaveValue("name");
     fireEvent.click(screen.getByRole("button", { name: "Filter sessions" }));
+  });
+
+  it("applies Pi text deltas from SSE without waiting for message refresh", async () => {
+    let pushEvent: ((event: unknown) => void) | undefined;
+    const api = {
+      ...makeApi([
+        { id: "a", cwd: "/repo/a", sessionName: "Live", status: "idle", model: "m", lastActivity: 1 },
+      ]),
+      async getMessages() {
+        return [];
+      },
+      streamEvents(_sessionId: string, onEvent: (event: unknown) => void) {
+        pushEvent = onEvent;
+        return () => undefined;
+      },
+    } satisfies SessionDashboardApi;
+
+    render(<SessionDashboard api={api} />);
+    await screen.findByText("Live");
+    fireEvent.click(screen.getByRole("button", { name: /Live/ }));
+    await waitFor(() => expect(pushEvent).toBeDefined());
+
+    act(() => {
+      pushEvent?.({
+        type: "message_update",
+        message: { role: "assistant", content: "" },
+        assistantMessageEvent: { type: "text_delta", delta: "Hel" },
+      });
+    });
+    expect(screen.getByText("Hel")).toBeInTheDocument();
+
+    act(() => {
+      pushEvent?.({
+        type: "message_update",
+        message: { role: "assistant", content: "" },
+        assistantMessageEvent: { type: "text_delta", delta: "lo" },
+      });
+    });
+    expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
   it("renames the active session via the inline form", async () => {
