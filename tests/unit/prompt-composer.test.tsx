@@ -1,0 +1,134 @@
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PromptComposer } from "../../src/web/components/PromptComposer.js";
+
+function renderComposer(overrides = {}) {
+  const handlers = {
+    onPrompt: vi.fn(),
+    onSteer: vi.fn(),
+    onFollowUp: vi.fn(),
+    onAbort: vi.fn(),
+    onBash: vi.fn(),
+    onAbortBash: vi.fn(),
+  };
+  render(<PromptComposer
+    sessionId="s1"
+    isStreaming={false}
+    steeringQueue={[]}
+    followUpQueue={[]}
+    fileSuggestions={["src/app.ts", "README.md"]}
+    commandSuggestions={["model", "settings"]}
+    {...handlers}
+    {...overrides}
+  />);
+  return handlers;
+}
+
+beforeEach(() => {
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => store.set(key, value)),
+      removeItem: vi.fn((key: string) => store.delete(key)),
+      clear: vi.fn(() => store.clear()),
+    },
+  });
+  URL.createObjectURL = vi.fn(() => "blob://preview");
+  vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000001");
+});
+
+describe("PromptComposer", () => {
+  it("submits prompt when idle", () => {
+    const handlers = renderComposer();
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(handlers.onPrompt).toHaveBeenCalledWith("hello", []);
+  });
+
+  it("steers by default when streaming and supports explicit follow-up", () => {
+    const handlers = renderComposer({ isStreaming: true });
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "change course" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(handlers.onSteer).toHaveBeenCalledWith("change course");
+
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "later" } });
+    fireEvent.click(screen.getByRole("button", { name: "Follow-up" }));
+    expect(handlers.onFollowUp).toHaveBeenCalledWith("later");
+  });
+
+  it("renders steering and follow-up queues", () => {
+    renderComposer({ steeringQueue: ["stop"], followUpQueue: ["then test"] });
+    expect(screen.getByLabelText("Message queues")).toHaveTextContent("Steer: stop");
+    expect(screen.getByLabelText("Message queues")).toHaveTextContent("Follow-up: then test");
+  });
+
+  it("persists draft per session and recalls prompt history", () => {
+    renderComposer();
+    const draft = screen.getByLabelText("Prompt draft");
+    fireEvent.change(draft, { target: { value: "remember me" } });
+    expect(localStorage.getItem("draft:s1")).toBe("remember me");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.keyDown(draft, { key: "ArrowUp", altKey: true });
+    expect(screen.getByLabelText("Prompt draft")).toHaveValue("remember me");
+  });
+
+  it("opens large composer and preserves text", () => {
+    renderComposer();
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "long text" } });
+    fireEvent.click(screen.getByRole("button", { name: "Large editor" }));
+    expect(screen.getByRole("dialog", { name: "Large composer" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Large prompt draft")).toHaveValue("long text");
+  });
+
+  it("handles file autocomplete and tab path completion", () => {
+    renderComposer();
+    const draft = screen.getByLabelText("Prompt draft");
+    fireEvent.change(draft, { target: { value: "check @src" } });
+    fireEvent.click(screen.getByRole("button", { name: "src/app.ts" }));
+    expect(draft).toHaveValue("check @src/app.ts");
+
+    fireEvent.change(draft, { target: { value: "READ" } });
+    fireEvent.keyDown(draft, { key: "Tab" });
+    expect(draft).toHaveValue("@README.md");
+  });
+
+  it("handles slash-command autocomplete", () => {
+    renderComposer();
+    const draft = screen.getByLabelText("Prompt draft");
+    fireEvent.change(draft, { target: { value: "/mod" } });
+    fireEvent.click(screen.getByRole("button", { name: "model" }));
+    expect(draft).toHaveValue("/model");
+  });
+
+  it("uploads/removes attachments", () => {
+    renderComposer();
+    const file = new File(["abc"], "photo.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Attach files"), { target: { files: [file] } });
+    expect(screen.getByText("photo.png")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(screen.queryByText("photo.png")).not.toBeInTheDocument();
+  });
+
+  it("routes ! and !! shell commands", () => {
+    const handlers = renderComposer();
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "!echo hi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(handlers.onBash).toHaveBeenCalledWith("echo hi", true);
+
+    fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "!!secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(handlers.onBash).toHaveBeenCalledWith("secret", false);
+  });
+
+  it("exposes abort controls", () => {
+    const handlers = renderComposer();
+    fireEvent.click(screen.getByRole("button", { name: "Abort" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abort bash" }));
+    expect(handlers.onAbort).toHaveBeenCalled();
+    expect(handlers.onAbortBash).toHaveBeenCalled();
+  });
+});

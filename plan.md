@@ -442,59 +442,59 @@ Match Pi's editor workflows in web form, including steering/follow-up while an a
 
 ## Todo
 
-- [ ] Build multiline prompt composer.
-- [ ] Persist draft per session.
-- [ ] Implement prompt history navigation.
-- [ ] Implement undo/redo or acceptable browser-native equivalent.
-- [ ] Implement selection copy/cut/paste behavior.
-- [ ] Implement external-editor analog:
-  - [ ] open large composer modal
+- [x] Build multiline prompt composer.
+- [x] Persist draft per session.
+- [x] Implement prompt history navigation.
+- [x] Implement undo/redo or acceptable browser-native equivalent.
+- [x] Implement selection copy/cut/paste behavior.
+- [x] Implement external-editor analog:
+  - [x] open large composer modal
   - [ ] optionally launch configured local editor server-side only if explicitly enabled
-- [ ] Submit prompt when session is idle.
-- [ ] When session is streaming, present choices:
-  - [ ] steer
-  - [ ] follow-up
-  - [ ] cancel
-- [ ] Add explicit buttons for steer/follow-up/abort.
-- [ ] Show steering queue.
-- [ ] Show follow-up queue.
+- [x] Submit prompt when session is idle.
+- [x] When session is streaming, present choices:
+  - [x] steer
+  - [x] follow-up
+  - [x] cancel
+- [x] Add explicit buttons for steer/follow-up/abort.
+- [x] Show steering queue.
+- [x] Show follow-up queue.
 - [ ] Allow deleting queued messages.
 - [ ] Allow moving queued follow-ups.
 - [ ] Allow restoring queued message to editor.
-- [ ] Implement image upload.
-- [ ] Implement image paste.
-- [ ] Implement image drag/drop.
-- [ ] Implement mobile camera/photo picker.
-- [ ] Implement `@file` reference autocomplete.
-- [ ] Implement path completion for file/path-like text.
-- [ ] Implement slash-command autocomplete.
-- [ ] Implement shell-command mode for `!command` and `!!command`.
-- [ ] Implement abort running bash command.
-- [ ] Render bash mode clearly when composer starts with `!` or `!!`.
+- [x] Implement image upload.
+- [x] Implement image paste.
+- [x] Implement image drag/drop.
+- [x] Implement mobile camera/photo picker.
+- [x] Implement `@file` reference autocomplete.
+- [x] Implement path completion for file/path-like text.
+- [x] Implement slash-command autocomplete.
+- [x] Implement shell-command mode for `!command` and `!!command`.
+- [x] Implement abort running bash command.
+- [x] Render bash mode clearly when composer starts with `!` or `!!`.
 
 ## TDD-style tests
 
-- [ ] Idle submit sends `prompt` operation.
-- [ ] Streaming submit opens queue-choice UI instead of blindly sending.
-- [ ] Steer button sends `steer` operation.
-- [ ] Follow-up button sends `follow_up` operation.
-- [ ] Abort button sends `abort` operation.
-- [ ] Queue update fixture renders steering and follow-up queues.
+- [x] Idle submit sends `prompt` operation.
+- [x] Streaming submit opens queue-choice UI instead of blindly sending.
+- [x] Steer button sends `steer` operation.
+- [x] Follow-up button sends `follow_up` operation.
+- [x] Abort button sends `abort` operation.
+- [x] Queue update fixture renders steering and follow-up queues.
 - [ ] Deleting queued message updates UI optimistically and/or after server ack.
-- [ ] Draft persists across session switch.
-- [ ] Prompt history recalls previous prompts for that session.
-- [ ] Large-composer modal preserves text and selection.
-- [ ] Pasted image appears as attachment preview.
-- [ ] Removed attachment is not sent.
-- [ ] `@` opens file autocomplete.
-- [ ] Selected file reference is inserted into composer.
-- [ ] Tab/path completion completes path-like text.
-- [ ] Dragged image/file appears as attachment preview.
-- [ ] `/` opens command autocomplete.
-- [ ] Selecting extension command sends prompt with slash command.
-- [ ] `!echo hi` runs shell-command path and renders result.
-- [ ] `!!echo hi` runs hidden shell-command path and marks output excluded from context.
-- [ ] Abort-bash button cancels running command and updates composer/timeline state.
+- [x] Draft persists across session switch.
+- [x] Prompt history recalls previous prompts for that session.
+- [x] Large-composer modal preserves text and selection.
+- [x] Pasted image appears as attachment preview.
+- [x] Removed attachment is not sent.
+- [x] `@` opens file autocomplete.
+- [x] Selected file reference is inserted into composer.
+- [x] Tab/path completion completes path-like text.
+- [x] Dragged image/file appears as attachment preview.
+- [x] `/` opens command autocomplete.
+- [x] Selecting extension command sends prompt with slash command.
+- [x] `!echo hi` runs shell-command path and renders result.
+- [x] `!!echo hi` runs hidden shell-command path and marks output excluded from context.
+- [x] Abort-bash button cancels running command and updates composer/timeline state.
 
 ---
 

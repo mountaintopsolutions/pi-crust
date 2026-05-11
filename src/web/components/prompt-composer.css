@@ -1,0 +1,9 @@
+.prompt-composer { border-top: 1px solid #2f3440; padding: 1rem; display: grid; gap: 0.75rem; background: #12151b; }
+.prompt-composer.bash { border-color: #f59e0b; }
+.prompt-composer.hidden-bash { border-color: #a16207; }
+.composer-toolbar, .composer-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.prompt-composer textarea { width: 100%; min-height: 6rem; box-sizing: border-box; }
+.suggestions, .attachments { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.attachments img { max-width: 4rem; max-height: 4rem; border-radius: 0.35rem; }
+[role="dialog"] { border: 1px solid #72a7ff; border-radius: 0.75rem; padding: 1rem; background: #171a21; }
+[role="dialog"] textarea { min-height: 16rem; }
