@@ -41,42 +41,49 @@ export function MessageTimeline({ messages, hideThinking = false, autoScroll = t
 
   return (
     <section className="message-timeline" aria-label="Message timeline">
-      {messages.map((message) => (
-        <article key={message.id} className={`message-card ${message.role}`} aria-label={`${message.role} message`}>
-          <header className="message-header">
-            <strong>{messageTitle(message)}</strong>
-            {message.aborted ? <span className="badge warning">aborted</span> : null}
-            {message.error ? <span className="badge error">error</span> : null}
-          </header>
+      <div className="message-timeline-inner">
+        {messages.map((message) => {
+          const showLabel = message.role === "custom" || message.role === "summary";
+          return (
+            <article key={message.id} className={`message-card ${message.role}`} aria-label={`${message.role} message`}>
+              <header className={`message-header ${showLabel ? "" : "is-hidden"}`}>
+                <strong>{messageTitle(message)}</strong>
+                {message.aborted ? <span className="badge warning">aborted</span> : null}
+                {message.error ? <span className="badge error">error</span> : null}
+              </header>
 
-          {message.images?.length ? (
-            <div className="message-images">
-              {message.images.map((image) => <img key={image.id} src={image.src} alt={image.alt ?? "attachment"} />)}
-            </div>
-          ) : null}
+              {message.images?.length ? (
+                <div className="message-images">
+                  {message.images.map((image) => <img key={image.id} src={image.src} alt={image.alt ?? "attachment"} />)}
+                </div>
+              ) : null}
 
-          {message.thinking && !hideThinking ? (
-            <details className="thinking-block" open>
-              <summary>Thinking</summary>
-              <pre>{message.thinking}</pre>
-            </details>
-          ) : null}
+              {message.thinking && !hideThinking ? (
+                <details className="thinking-block">
+                  <summary>Thinking</summary>
+                  <pre>{message.thinking}</pre>
+                </details>
+              ) : null}
 
-          <MarkdownLite text={message.text} />
+              <div className="message-bubble">
+                <MarkdownLite text={message.text} />
+              </div>
 
-          {message.error ? <p role="alert" className="message-error">{message.error}</p> : null}
+              {message.error ? <p role="alert" className="message-error">{message.error}</p> : null}
 
-          <footer className="message-footer">
-            {message.provider ? <span>{message.provider}</span> : null}
-            {message.model ? <span>{message.model}</span> : null}
-            {message.stopReason ? <span>{message.stopReason}</span> : null}
-            {message.tokenUsage ? <span>{message.tokenUsage}</span> : null}
-            {message.cost ? <span>{message.cost}</span> : null}
-            <button type="button" onClick={() => void copyText(message.text)}>Copy</button>
-          </footer>
-        </article>
-      ))}
-      <div ref={endRef} data-testid="timeline-end" />
+              <footer className="message-footer is-hidden">
+                {message.provider ? <span>{message.provider}</span> : null}
+                {message.model ? <span>{message.model}</span> : null}
+                {message.stopReason ? <span>{message.stopReason}</span> : null}
+                {message.tokenUsage ? <span>{message.tokenUsage}</span> : null}
+                {message.cost ? <span>{message.cost}</span> : null}
+                <button type="button" onClick={() => void copyText(message.text)}>Copy</button>
+              </footer>
+            </article>
+          );
+        })}
+        <div ref={endRef} data-testid="timeline-end" />
+      </div>
     </section>
   );
 }

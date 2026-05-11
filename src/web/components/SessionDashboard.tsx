@@ -4,6 +4,7 @@ import iconBlack from "../assets-icon-black.svg";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
+import { ShortcutHelp } from "./ShortcutHelp.js";
 import "./session-dashboard.css";
 
 export interface SessionDashboardProps {
@@ -298,6 +299,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
           <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice">Dismiss</button>
         </div>
       ) : null}
+
+      <ShortcutHelp />
 
       <ModelPicker
         open={modelPickerOpen}

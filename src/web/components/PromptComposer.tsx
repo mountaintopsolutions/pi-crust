@@ -220,10 +220,6 @@ export function PromptComposer(props: PromptComposerProps) {
           {queueSummary.map((item, index) => <li key={index}>{item}</li>)}
         </ul>
       ) : null}
-
-      <p className="composer-hint" aria-hidden="true">
-        <kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline · <kbd>Alt+Enter</kbd> follow-up{props.isStreaming ? <> · <kbd>Esc</kbd> abort</> : null} · <kbd>Alt+↑</kbd> history
-      </p>
     </section>
   );
 }
