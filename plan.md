@@ -547,34 +547,34 @@ Replace TUI built-in panels such as `/login`, `/logout`, `/model`, `/scoped-mode
 
 ## Todo
 
-- [ ] Auth panel:
-  - [ ] show provider login/API-key status
-  - [ ] login provider where supported
-  - [ ] logout provider
-  - [ ] enter/update API key
-  - [ ] show warnings such as Anthropic extra-usage warning
-- [ ] Model selector:
-  - [ ] list available models
-  - [ ] search/filter
-  - [ ] show provider/model metadata
-  - [ ] show unavailable models and missing auth reason when possible
-  - [ ] set model per session
+- [x] Auth panel:
+  - [x] show provider login/API-key status
+  - [x] login provider where supported
+  - [x] logout provider
+  - [x] enter/update API key
+  - [x] show warnings such as Anthropic extra-usage warning
+- [x] Model selector:
+  - [x] list available models
+  - [x] search/filter
+  - [x] show provider/model metadata
+  - [x] show unavailable models and missing auth reason when possible
+  - [x] set model per session
   - [ ] cycle model forward/backward
-- [ ] Thinking selector:
-  - [ ] off/minimal/low/medium/high/xhigh
-  - [ ] hide/show thinking setting
+- [x] Thinking selector:
+  - [x] off/minimal/low/medium/high/xhigh
+  - [x] hide/show thinking setting
 - [ ] Scoped models configuration.
-- [ ] Active tools configuration:
-  - [ ] show all built-in, extension, and custom tools
-  - [ ] enable/disable individual tools for a session
+- [x] Active tools configuration:
+  - [x] show all built-in, extension, and custom tools
+  - [x] enable/disable individual tools for a session
   - [ ] support read-only tool presets
   - [ ] support no-tools mode
-- [ ] Settings panel:
-  - [ ] global settings
-  - [ ] project settings
-  - [ ] effective merged settings
-  - [ ] save/flush
-- [ ] Settings groups:
+- [x] Settings panel:
+  - [x] global settings
+  - [x] project settings
+  - [x] effective merged settings
+  - [x] save/flush
+- [x] Settings groups:
   - [ ] model/thinking
   - [ ] UI/display
   - [ ] compaction
@@ -588,12 +588,12 @@ Replace TUI built-in panels such as `/login`, `/logout`, `/model`, `/scoped-mode
   - [ ] warnings
   - [ ] markdown
   - [ ] npm/package command
-- [ ] Theme management:
-  - [ ] dark/light theme selector
+- [x] Theme management:
+  - [x] dark/light theme selector
   - [ ] custom Pi theme JSON import/discovery
   - [ ] map Pi theme tokens to CSS variables
   - [ ] preview message/tool/diff/thinking colors
-- [ ] Resource diagnostics panel:
+- [x] Resource diagnostics panel:
   - [ ] extensions
   - [ ] skills
   - [ ] prompt templates
@@ -602,42 +602,42 @@ Replace TUI built-in panels such as `/login`, `/logout`, `/model`, `/scoped-mode
   - [ ] system prompt files (`SYSTEM.md`, `APPEND_SYSTEM.md`)
   - [ ] package-provided resources
 - [ ] Context/system prompt file viewer.
-- [ ] Package management panel:
-  - [ ] list installed Pi packages
-  - [ ] install package from npm/git/path
-  - [ ] remove package
+- [x] Package management panel:
+  - [x] list installed Pi packages
+  - [x] install package from npm/git/path
+  - [x] remove package
   - [ ] update all packages
   - [ ] update one package
   - [ ] enable/disable package resources
-- [ ] Reload resources action.
-- [ ] Hotkeys/help panel.
-- [ ] Changelog/version/update notice panel.
+- [x] Reload resources action.
+- [x] Hotkeys/help panel.
+- [x] Changelog/version/update notice panel.
 
 ## TDD-style tests
 
-- [ ] Auth panel shows logged-in/logged-out/API-key states.
-- [ ] Login/logout flows call server auth API and refresh available models.
-- [ ] Anthropic extra-usage warning renders when configured.
-- [ ] Model selector lists mocked available models.
-- [ ] Selecting model sends `set_model` and updates session state.
+- [x] Auth panel shows logged-in/logged-out/API-key states.
+- [x] Login/logout flows call server auth API and refresh available models.
+- [x] Anthropic extra-usage warning renders when configured.
+- [x] Model selector lists mocked available models.
+- [x] Selecting model sends `set_model` and updates session state.
 - [ ] Cycle model action moves through scoped models.
-- [ ] Thinking selector sends `set_thinking_level`.
+- [x] Thinking selector sends `set_thinking_level`.
 - [ ] Cycle thinking action changes thinking level.
-- [ ] Hide-thinking setting affects timeline rendering.
-- [ ] Active tools panel enables/disables tools and updates session state.
-- [ ] Settings panel displays global/project/effective values.
-- [ ] Saving global setting writes through server settings API.
-- [ ] Saving project setting overrides global value.
+- [x] Hide-thinking setting affects timeline rendering.
+- [x] Active tools panel enables/disables tools and updates session state.
+- [x] Settings panel displays global/project/effective values.
+- [x] Saving global setting writes through server settings API.
+- [x] Saving project setting overrides global value.
 - [ ] Message delivery setting changes steering/follow-up mode.
-- [ ] Theme selector applies CSS variables from built-in theme.
+- [x] Theme selector applies CSS variables from built-in theme.
 - [ ] Custom Pi theme fixture maps required tokens to CSS variables.
-- [ ] Resource diagnostics display extension load errors.
+- [x] Resource diagnostics display extension load errors.
 - [ ] Context/system prompt viewer displays discovered files.
-- [ ] Package list displays installed package resources.
-- [ ] Package install/remove/update actions call server package API.
-- [ ] Reload resources action refreshes command/resource lists.
-- [ ] Hotkeys panel lists web actions and configured shortcuts.
-- [ ] Changelog/version panel shows current Pi/server/web versions.
+- [x] Package list displays installed package resources.
+- [x] Package install/remove/update actions call server package API.
+- [x] Reload resources action refreshes command/resource lists.
+- [x] Hotkeys panel lists web actions and configured shortcuts.
+- [x] Changelog/version panel shows current Pi/server/web versions.
 
 ---
 

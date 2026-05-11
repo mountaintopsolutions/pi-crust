@@ -1,0 +1,114 @@
+import { useState } from "react";
+import "./configuration-panel.css";
+
+export interface ModelInfo { readonly provider: string; readonly id: string; readonly name: string; readonly available: boolean; readonly reason?: string; }
+export interface ToolInfo { readonly name: string; readonly enabled: boolean; readonly source: "built-in" | "extension" | "custom"; }
+export interface ResourceDiagnostic { readonly kind: string; readonly name: string; readonly status: "loaded" | "error"; readonly detail?: string; }
+export interface PackageInfo { readonly source: string; readonly resources: readonly string[]; }
+export interface ThemeInfo { readonly name: string; readonly tokens: Record<string, string>; }
+
+export interface ConfigurationPanelProps {
+  readonly authProviders: readonly { readonly provider: string; readonly status: "logged-in" | "logged-out" | "api-key"; readonly warning?: string }[];
+  readonly models: readonly ModelInfo[];
+  readonly thinkingLevel: string;
+  readonly tools: readonly ToolInfo[];
+  readonly settings: Record<string, unknown>;
+  readonly resources: readonly ResourceDiagnostic[];
+  readonly packages: readonly PackageInfo[];
+  readonly themes: readonly ThemeInfo[];
+  readonly hotkeys: readonly { readonly action: string; readonly key: string }[];
+  readonly versions: readonly { readonly name: string; readonly version: string }[];
+  readonly onLogin: (provider: string) => void;
+  readonly onLogout: (provider: string) => void;
+  readonly onApiKey: (provider: string, key: string) => void;
+  readonly onModelSelect: (provider: string, modelId: string) => void;
+  readonly onThinkingSelect: (level: string) => void;
+  readonly onToolToggle: (name: string, enabled: boolean) => void;
+  readonly onSaveSetting: (key: string, value: string) => void;
+  readonly onReloadResources: () => void;
+  readonly onPackageInstall: (source: string) => void;
+  readonly onPackageRemove: (source: string) => void;
+  readonly onThemeSelect: (name: string) => void;
+}
+
+export function ConfigurationPanel(props: ConfigurationPanelProps) {
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [settingKey, setSettingKey] = useState("defaultModel");
+  const [settingValue, setSettingValue] = useState("");
+  const [packageSource, setPackageSource] = useState("npm:pi-package");
+
+  return (
+    <section className="configuration-panel" aria-label="Configuration">
+      <h2>Configuration</h2>
+
+      <section aria-label="Auth panel">
+        <h3>Auth</h3>
+        {props.authProviders.map((auth) => (
+          <div key={auth.provider}>
+            <strong>{auth.provider}</strong> <span>{auth.status}</span>
+            {auth.warning ? <p role="alert">{auth.warning}</p> : null}
+            <button type="button" onClick={() => props.onLogin(auth.provider)}>Login</button>
+            <button type="button" onClick={() => props.onLogout(auth.provider)}>Logout</button>
+            <input aria-label={`${auth.provider} API key`} value={apiKeys[auth.provider] ?? ""} onChange={(event) => setApiKeys((current) => ({ ...current, [auth.provider]: event.target.value }))} />
+            <button type="button" onClick={() => props.onApiKey(auth.provider, apiKeys[auth.provider] ?? "")}>Save API key</button>
+          </div>
+        ))}
+      </section>
+
+      <section aria-label="Model selector">
+        <h3>Models</h3>
+        {props.models.map((model) => (
+          <button key={`${model.provider}/${model.id}`} type="button" disabled={!model.available} onClick={() => props.onModelSelect(model.provider, model.id)}>
+            {model.name} {model.available ? "" : `(${model.reason ?? "unavailable"})`}
+          </button>
+        ))}
+      </section>
+
+      <section aria-label="Thinking selector">
+        <h3>Thinking</h3>
+        {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
+          <button key={level} type="button" aria-pressed={props.thinkingLevel === level} onClick={() => props.onThinkingSelect(level)}>{level}</button>
+        ))}
+      </section>
+
+      <section aria-label="Active tools">
+        <h3>Tools</h3>
+        {props.tools.map((tool) => (
+          <label key={tool.name}>
+            <input type="checkbox" checked={tool.enabled} onChange={(event) => props.onToolToggle(tool.name, event.target.checked)} />
+            {tool.name} ({tool.source})
+          </label>
+        ))}
+      </section>
+
+      <section aria-label="Settings panel">
+        <h3>Settings</h3>
+        <pre>{JSON.stringify(props.settings, null, 2)}</pre>
+        <input aria-label="Setting key" value={settingKey} onChange={(event) => setSettingKey(event.target.value)} />
+        <input aria-label="Setting value" value={settingValue} onChange={(event) => setSettingValue(event.target.value)} />
+        <button type="button" onClick={() => props.onSaveSetting(settingKey, settingValue)}>Save setting</button>
+      </section>
+
+      <section aria-label="Theme management">
+        <h3>Themes</h3>
+        {props.themes.map((theme) => <button key={theme.name} type="button" onClick={() => props.onThemeSelect(theme.name)}>{theme.name}</button>)}
+      </section>
+
+      <section aria-label="Resource diagnostics">
+        <h3>Resources</h3>
+        <button type="button" onClick={props.onReloadResources}>Reload resources</button>
+        {props.resources.map((resource) => <p key={`${resource.kind}:${resource.name}`}>{resource.kind}: {resource.name} - {resource.status} {resource.detail}</p>)}
+      </section>
+
+      <section aria-label="Package management">
+        <h3>Packages</h3>
+        <input aria-label="Package source" value={packageSource} onChange={(event) => setPackageSource(event.target.value)} />
+        <button type="button" onClick={() => props.onPackageInstall(packageSource)}>Install package</button>
+        {props.packages.map((pkg) => <p key={pkg.source}>{pkg.source} <button type="button" onClick={() => props.onPackageRemove(pkg.source)}>Remove package</button></p>)}
+      </section>
+
+      <section aria-label="Hotkeys"><h3>Hotkeys</h3>{props.hotkeys.map((hotkey) => <p key={hotkey.action}>{hotkey.action}: {hotkey.key}</p>)}</section>
+      <section aria-label="Changelog and versions"><h3>Versions</h3>{props.versions.map((version) => <p key={version.name}>{version.name}: {version.version}</p>)}</section>
+    </section>
+  );
+}

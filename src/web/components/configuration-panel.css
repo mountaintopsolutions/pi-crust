@@ -1,0 +1,4 @@
+.configuration-panel { display: grid; gap: 1rem; padding: 1rem; }
+.configuration-panel section { border: 1px solid #2f3440; border-radius: 0.75rem; padding: 1rem; display: grid; gap: 0.5rem; }
+.configuration-panel button, .configuration-panel input { margin: 0.15rem; }
+.configuration-panel label { display: block; }
