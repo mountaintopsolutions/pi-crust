@@ -11,9 +11,68 @@ The design goal is not to mirror Pi's terminal TUI through `xterm.js`; instead, 
 - Prefer structured Pi events over terminal scraping.
 - Support many independent sessions concurrently.
 - Keep mobile approval/steering workflows first-class.
-- Treat the existing Pi TUI features as the parity baseline.
+- Treat the existing Pi TUI features as the parity baseline, but do not let full parity block the first useful release.
 - Build test-first around event streams, state reducers, and browser flows.
 - Keep Tailscale deployment simple: bind locally or on tailnet interface, add app-level auth token anyway.
+- Keep the Pi integration behind an adapter boundary so a mock adapter, SDK adapter, and possible RPC adapter can share the same web/server protocol.
+
+## Product cut-lines
+
+The plan is intentionally comprehensive. Implementation should be staged by usable product cut-lines so the project does not stall chasing full TUI parity before becoming useful.
+
+### Cut-line A — local proof of life
+
+A developer can run the server locally, create one Pi session, send a prompt, and see streamed assistant output in the browser.
+
+Required phases/features:
+
+- Minimal Phase 0
+- Minimal Phase 1
+- Minimal Phase 2
+- A tiny subset of Phase 3 and Phase 4
+
+### Cut-line B — remote mobile supervisor
+
+A developer can access the app over Tailscale from a phone, see multiple sessions, steer/follow-up/abort, and approve extension prompts.
+
+Required phases/features:
+
+- Phase 3 dashboard
+- Phase 6 queue/composer basics
+- Phase 7 extension UI primitives
+- Phase 12 auth/reconnect/mobile basics
+
+### Cut-line C — TUI parity MVP
+
+The WUI covers the high-value Pi TUI behaviors: sessions, streaming, tools, queues, model/thinking controls, settings basics, compaction, and tree/fork/clone.
+
+Required phases/features:
+
+- Phases 3–10, excluding package management and advanced theming if needed
+
+### Cut-line D — better-than-TUI parallel coding
+
+The WUI adds workflows the TUI does not emphasize: side-by-side sessions, git/worktree orchestration, approval inbox, push notifications, and cost/admin dashboards.
+
+Required phases/features:
+
+- Phase 11
+- Phase 12
+- selected later enhancements
+
+## Cross-cutting requirements
+
+These apply to all phases.
+
+- Protocol messages must be versioned so old browser tabs fail gracefully after server upgrades.
+- Browser state must be reconstructible from server state after refresh/reconnect.
+- Large streams and tool outputs must have backpressure/truncation rules.
+- Server APIs that touch the filesystem must enforce cwd/root allowlists.
+- Browser clients must never be allowed to request arbitrary host paths unless explicitly permitted by server policy.
+- All dangerous operations need explicit UI affordances and audit-friendly logs.
+- Tests should not require real LLM API calls unless explicitly marked integration/e2e.
+- A deterministic mock Pi adapter should exist before the web UI becomes complex.
+- The app should prefer progressive enhancement on mobile: every shortcut must have a visible touch UI equivalent.
 
 ## Architectural target
 
@@ -95,6 +154,7 @@ Prove that the server can create, hold, resume, and dispose multiple independent
 
 - [ ] Add dependency on `@earendil-works/pi-coding-agent`.
 - [ ] Create a minimal server-side Pi adapter.
+- [ ] Create a mock Pi adapter with deterministic event fixtures for tests and frontend development without API keys.
 - [ ] Create `SessionRegistry` abstraction.
 - [ ] Support creating a new persistent session for a cwd.
 - [ ] Support opening an existing session file.
@@ -103,6 +163,8 @@ Prove that the server can create, hold, resume, and dispose multiple independent
 - [ ] Support disposing idle sessions.
 - [ ] Ensure each session uses cwd-specific tool factories, not global tool singletons.
 - [ ] Ensure no code calls `process.chdir()`.
+- [ ] Enforce cwd/project root allowlist before creating/opening sessions.
+- [ ] Reject session files outside configured session roots.
 - [ ] Share global `AuthStorage`, `ModelRegistry`, and `SettingsManager` safely.
 - [ ] Define internal session handle metadata:
   - [ ] session id
@@ -124,6 +186,9 @@ Prove that the server can create, hold, resume, and dispose multiple independent
 - [ ] Reopening a disposed session restores state from disk.
 - [ ] Registry rejects unknown session IDs with a typed error.
 - [ ] Tests assert no `process.chdir()` usage in server code.
+- [ ] Mock Pi adapter can emit a deterministic assistant response without network/API keys.
+- [ ] Cwd allowlist rejects disallowed project paths.
+- [ ] Session-open API rejects session files outside configured roots.
 
 ---
 
@@ -136,6 +201,7 @@ Define the browser/server protocol and build a deterministic client-side reducer
 ## Todo
 
 - [ ] Define shared TypeScript protocol types.
+- [ ] Add protocol version/feature negotiation.
 - [ ] Define client-to-server operations:
   - [ ] `list_sessions`
   - [ ] `new_session`
@@ -176,6 +242,8 @@ Define the browser/server protocol and build a deterministic client-side reducer
 - [ ] Implement WebSocket connection lifecycle.
 - [ ] Implement session subscription/fanout.
 - [ ] Implement reconnect behavior at protocol level.
+- [ ] Implement state resynchronization after reconnect/refresh.
+- [ ] Define truncation/backpressure behavior for large tool streams.
 - [ ] Build client-side event reducer:
   - [ ] messages
   - [ ] streaming text deltas
@@ -202,6 +270,9 @@ Define the browser/server protocol and build a deterministic client-side reducer
 - [ ] WebSocket fanout sends session A events only to clients subscribed to session A.
 - [ ] Reconnected client can request current session state and messages.
 - [ ] Malformed client messages return typed protocol errors.
+- [ ] Version mismatch returns clear upgrade/reload instruction.
+- [ ] Reconnect resync rebuilds active session state without replaying infinite history.
+- [ ] Large tool stream fixture is truncated or paged according to protocol rules.
 
 ---
 
@@ -877,6 +948,53 @@ Use this as a final cross-check before calling the WUI feature-complete relative
 - [ ] Native terminal cursor/IME mechanics are replaced by browser input behavior.
 - [ ] Terminal ANSI rendering is replaced by native web components.
 - [ ] Shell job control/suspend is not meaningful in WUI.
+
+---
+
+# Risk register
+
+## Risk: SDK APIs shift while Pi evolves
+
+Mitigation:
+
+- Keep all direct Pi SDK calls inside a small adapter.
+- Prefer documented APIs.
+- Add adapter contract tests.
+- Consider an RPC adapter if SDK coupling becomes painful.
+
+## Risk: full TUI parity delays useful mobile workflow
+
+Mitigation:
+
+- Follow product cut-lines.
+- Ship remote mobile supervisor before full settings/package/theme parity.
+- Keep final parity checklist separate from MVP scope.
+
+## Risk: filesystem exposure over remote UI
+
+Mitigation:
+
+- Require project root allowlists.
+- Never expose arbitrary server file pickers by default.
+- Add explicit read-only mode.
+- Log dangerous operations and approval decisions.
+
+## Risk: many concurrent agents overload machine or provider limits
+
+Mitigation:
+
+- Add per-session and global concurrency limits.
+- Show running bash/LLM operations in admin UI.
+- Add cost dashboard and provider retry visibility.
+- Support idle disposal.
+
+## Risk: extension UI compatibility diverges from TUI behavior
+
+Mitigation:
+
+- Use an `rpc-demo`-style fixture as a compatibility test.
+- Document unsupported terminal-only `ctx.ui.custom()` behavior.
+- Prefer web-native primitives for approvals/status/widgets.
 
 ---
 
