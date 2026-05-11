@@ -394,43 +394,43 @@ Render Pi tool calls/results as structured web UI cards with live updates.
 
 ## Todo
 
-- [ ] Create generic `ToolCard` component.
-- [ ] Implement pending/running/success/error states.
-- [ ] Implement collapse/expand per tool.
-- [ ] Implement collapse all / expand all.
-- [ ] Implement bash renderer:
-  - [ ] live output
+- [x] Create generic `ToolCard` component.
+- [x] Implement pending/running/success/error states.
+- [x] Implement collapse/expand per tool.
+- [x] Implement collapse all / expand all.
+- [x] Implement bash renderer:
+  - [x] live output
   - [ ] exit code
   - [ ] cancelled state
-  - [ ] truncation indicator
-- [ ] Implement read renderer:
-  - [ ] file path
-  - [ ] syntax-highlighted preview
-- [ ] Implement edit renderer:
-  - [ ] diff viewer
-  - [ ] added/removed/context coloring
-- [ ] Implement write renderer.
-- [ ] Implement grep renderer.
-- [ ] Implement find renderer.
-- [ ] Implement ls renderer.
-- [ ] Implement unknown/custom tool fallback renderer.
-- [ ] Add copy/download full tool output.
+  - [x] truncation indicator
+- [x] Implement read renderer:
+  - [x] file path
+  - [x] syntax-highlighted preview
+- [x] Implement edit renderer:
+  - [x] diff viewer
+  - [x] added/removed/context coloring
+- [x] Implement write renderer.
+- [x] Implement grep renderer.
+- [x] Implement find renderer.
+- [x] Implement ls renderer.
+- [x] Implement unknown/custom tool fallback renderer.
+- [x] Add copy/download full tool output.
 
 ## TDD-style tests
 
-- [ ] Generic tool start renders pending/running card.
-- [ ] Tool update replaces accumulated output without duplicating it.
-- [ ] Tool success shows success state.
-- [ ] Tool error shows error state and remains expanded by default.
-- [ ] Bash fixture renders streamed output and final exit code.
-- [ ] Read fixture renders file path and highlighted content.
-- [ ] Edit fixture renders expected diff hunks.
-- [ ] Grep fixture renders result list with file paths/lines.
-- [ ] Find fixture renders matched file list.
-- [ ] Ls fixture renders directory listing.
-- [ ] Unknown tool fixture renders arguments and result JSON/text.
-- [ ] Collapse all hides successful tool details.
-- [ ] Download full output uses full output path/URL when available.
+- [x] Generic tool start renders pending/running card.
+- [x] Tool update replaces accumulated output without duplicating it.
+- [x] Tool success shows success state.
+- [x] Tool error shows error state and remains expanded by default.
+- [x] Bash fixture renders streamed output and final exit code.
+- [x] Read fixture renders file path and highlighted content.
+- [x] Edit fixture renders expected diff hunks.
+- [x] Grep fixture renders result list with file paths/lines.
+- [x] Find fixture renders matched file list.
+- [x] Ls fixture renders directory listing.
+- [x] Unknown tool fixture renders arguments and result JSON/text.
+- [x] Collapse all hides successful tool details.
+- [x] Download full output uses full output path/URL when available.
 
 ---
 

@@ -1,0 +1,15 @@
+.tool-list { display: grid; gap: 0.75rem; }
+.tool-list-actions { display: flex; gap: 0.5rem; }
+.tool-card { border: 1px solid #343b49; border-radius: 0.75rem; background: #151922; overflow: hidden; }
+.tool-card header { display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem 0.75rem; }
+.tool-card.running header { background: #1e2636; }
+.tool-card.success header { background: #17301f; }
+.tool-card.error header { background: #3a1b1b; }
+.tool-body { padding: 0.75rem; }
+.tool-badge { border-radius: 999px; background: #5f4b1d; padding: 0.1rem 0.4rem; }
+.terminal-output { background: #07090d; color: #d4f7d4; }
+.diff-output .added { color: #86efac; }
+.diff-output .removed { color: #fca5a5; }
+.diff-output .context { color: #cbd5e1; }
+.tool-body footer { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; }
+pre { overflow: auto; }
