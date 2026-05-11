@@ -13,7 +13,7 @@ type SortMode = "recent" | "name" | "cwd";
 export function SessionDashboard({ api }: SessionDashboardProps) {
   const [sessions, setSessions] = useState<readonly SessionCardData[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [cwd, setCwd] = useState("/tmp/project");
+  const [cwd, setCwd] = useState("");
   const [sessionName, setSessionName] = useState("");
   const [query, setQuery] = useState("");
   const [showPaths, setShowPaths] = useState(false);
@@ -25,7 +25,18 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [followUpBySession, setFollowUpBySession] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    void api.listSessions().then(setSessions).catch((caught: unknown) => setError(errorMessage(caught)));
+    let cancelled = false;
+    void (async () => {
+      try {
+        const defaultCwd = api.getDefaultCwd ? await api.getDefaultCwd() : "/tmp/project";
+        if (cancelled) return;
+        setCwd(defaultCwd);
+        setSessions(await api.listSessions(defaultCwd));
+      } catch (caught) {
+        if (!cancelled) setError(errorMessage(caught));
+      }
+    })();
+    return () => { cancelled = true; };
   }, [api]);
 
   const visibleSessions = useMemo(() => {

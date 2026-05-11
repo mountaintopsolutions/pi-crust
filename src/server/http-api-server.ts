@@ -35,7 +35,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return sendJson(res, 200, { ok: true, adapter: useMock ? "mock" : "pi-sdk", projectRoot, sessionRoot });
+    return sendJson(res, 200, { ok: true, adapter: useMock ? "mock" : "pi-sdk", projectRoot, sessionRoot, defaultCwd: process.cwd() });
   }
 
   if (req.method === "GET" && url.pathname === "/api/sessions") {

@@ -28,7 +28,8 @@ export interface DashboardMessage {
 }
 
 export interface SessionDashboardApi {
-  listSessions(): Promise<readonly SessionCardData[]>;
+  getDefaultCwd?(): Promise<string>;
+  listSessions(cwd?: string): Promise<readonly SessionCardData[]>;
   createSession(input: NewSessionInput): Promise<SessionCardData>;
   renameSession(sessionId: string, name: string): Promise<SessionCardData>;
   deleteSession(sessionId: string): Promise<void>;

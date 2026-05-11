@@ -3,8 +3,14 @@ import type { DashboardMessage, NewSessionInput, SessionCardData, SessionDashboa
 const API_BASE = import.meta.env.VITE_PI_REMOTE_API_BASE ?? "http://127.0.0.1:8787";
 
 export class HttpSessionDashboardApi implements SessionDashboardApi {
-  async listSessions(): Promise<readonly SessionCardData[]> {
-    return request<SessionCardData[]>("/api/sessions");
+  async getDefaultCwd(): Promise<string> {
+    const health = await request<{ defaultCwd: string }>("/api/health");
+    return health.defaultCwd;
+  }
+
+  async listSessions(cwd?: string): Promise<readonly SessionCardData[]> {
+    const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+    return request<SessionCardData[]>(`/api/sessions${query}`);
   }
 
   async createSession(input: NewSessionInput): Promise<SessionCardData> {
