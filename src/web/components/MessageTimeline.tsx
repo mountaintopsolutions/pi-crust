@@ -304,7 +304,8 @@ function ToolCard({ tool }: { readonly tool: TimelineToolDetails }) {
       <summary>
         <span className="tool-icon" aria-hidden="true">{toolIcon(tool.status)}</span>
         <span className="tool-line">
-          <strong>{verbForName(tool.name)}</strong> <code>{tool.name}</code>
+          <strong>{verbForName(tool.name)}</strong>
+          {hasDedicatedVerb(tool.name) ? null : <> <code>{tool.name}</code></>}
           {summarizeArgs(tool.args) ? <> · <span className="tool-args">{summarizeArgs(tool.args)}</span></> : null}
         </span>
         <span className="tool-status-text">{statusLabel(tool.status)}</span>
@@ -326,15 +327,22 @@ function statusLabel(status: TimelineToolDetails["status"]): string {
   return "done";
 }
 
+const TOOL_VERBS: Record<string, string> = {
+  bash: "Ran",
+  read: "Read",
+  edit: "Edited",
+  write: "Wrote",
+  grep: "Searched",
+  find: "Found",
+  ls: "Listed",
+};
+
 function verbForName(name: string): string {
-  if (name === "bash") return "Ran";
-  if (name === "read") return "Read";
-  if (name === "edit") return "Edited";
-  if (name === "write") return "Wrote";
-  if (name === "grep") return "Searched";
-  if (name === "find") return "Found";
-  if (name === "ls") return "Listed";
-  return "Ran";
+  return TOOL_VERBS[name] ?? "Ran";
+}
+
+function hasDedicatedVerb(name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(TOOL_VERBS, name);
 }
 
 function summarizeArgs(args: Record<string, unknown>): string {
