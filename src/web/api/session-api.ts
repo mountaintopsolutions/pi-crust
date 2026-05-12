@@ -92,6 +92,8 @@ export interface DashboardMessage {
   readonly tool?: DashboardToolDetails;
   readonly images?: readonly DashboardMessageImage[];
   readonly timestamp?: number;
+  readonly customType?: string;
+  readonly details?: Record<string, unknown>;
 }
 
 export interface ModelOption {
