@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type { ExtensionUiResponse } from "../../shared/protocol.js";
 import type { PathPolicy } from "../security/path-policy.js";
 import type { CloneSessionResult, CreateSessionOptions, ForkMessage, ForkSessionResult, ModelInfo, PiAdapter, PiEventListener, PiSessionHandle, PromptAttachment, SessionListItem, SessionState } from "../pi/types.js";
@@ -119,6 +120,13 @@ export class SessionRegistry {
     const session = this.getSession(sessionId);
     await session.handle.dispose();
     this.sessions.delete(sessionId);
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    await session.handle.dispose();
+    this.sessions.delete(sessionId);
+    await fs.rm(session.sessionFile, { force: true });
   }
 
   async disposeAll(): Promise<void> {
