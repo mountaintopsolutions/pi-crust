@@ -263,7 +263,7 @@ test('shows status row beneath composer with cwd, model, and TUI-style stats', a
   const status = page.getByLabel('Session status');
   await expect(status).toBeVisible();
   await expect(status).toContainText('idle');
-  await expect(status).toContainText(/pi-remote-control|no-success-paste-warning/);
+  await expect(status).toContainText(/pi-remote-control|no-success-paste-warning|delete-session-persistence|trol-/);
   await expect(status).toContainText(/no model selected|mock\/mock\/mock-echo/);
   await expect(status).toContainText('↑0');
   await expect(status).toContainText('↓0');
@@ -302,6 +302,24 @@ test('shortcut modal opens with ? outside an input, ignored inside textarea', as
   await page.keyboard.press('Shift+?');
   await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeHidden();
   await expect(page.getByLabel('Prompt draft')).toHaveValue('?');
+});
+
+test('deleted sessions stay deleted after frontend reload', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'New session' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create new session' })).toBeVisible();
+  await page.getByLabel('New session cwd').fill(process.cwd());
+  await page.getByLabel('New session name').fill('Delete persistence check');
+  await page.getByRole('button', { name: 'Create session' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Delete persistence check' })).toBeVisible();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm delete' }).click();
+  await expect(page.getByText('Delete persistence check')).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByText('Delete persistence check')).toHaveCount(0);
 });
 
 test('can create a new session and send hello', async ({ page }) => {

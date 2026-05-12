@@ -231,7 +231,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
   }
 
   if (req.method === "POST" && action === "delete") {
-    await context.registry.disposeSession(sessionId);
+    const session = await getOrOpenSession(context, sessionId);
+    await context.registry.deleteSession(session.id);
+    context.coldSessionFiles.delete(session.id);
     return sendJson(res, 200, { ok: true });
   }
 

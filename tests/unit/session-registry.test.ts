@@ -95,6 +95,20 @@ describe("SessionRegistry", () => {
     await expect(reopened.handle.getMessages()).resolves.toHaveLength(2);
   });
 
+  it("deletes the persisted session file so deleted sessions do not reappear in lists", async () => {
+    const { registry, projectA } = await makeRegistry();
+    const created = await registry.createSession({ cwd: projectA });
+    await registry.prompt(created.id, "delete me");
+
+    await registry.deleteSession(created.id);
+
+    expect(registry.hotSessionCount).toBe(0);
+    await expect(fs.access(created.sessionFile)).rejects.toThrow();
+    const listed = await registry.listSessions(projectA);
+    expect(listed.map((item) => item.id)).not.toContain(created.id);
+    await expect(registry.openSession(created.sessionFile)).rejects.toThrow();
+  });
+
   it("rejects unknown session ids with a typed error message", async () => {
     const { registry } = await makeRegistry();
     await expect(registry.prompt("missing", "hello")).rejects.toThrow("Unknown session: missing");
