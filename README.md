@@ -1,7 +1,8 @@
 # pi-remote-control
 
 A self-hosted, mobile-first **web remote control for the [pi.dev](https://pi.dev/)
-coding agent**. Run long-lived `pi` sessions on a workstation, then drive them
+coding agent**. Half-claude code, half-jupyter notebook, half-dashboard.
+Run long-lived `pi` sessions on a workstation, then drive them
 from your phone, tablet, or any browser — typically over Tailscale on the
 private network — without losing context when you close the laptop, hand off
 to a phone, or restart the API server.
@@ -21,13 +22,13 @@ Mobile view — the agent returned an interactive D3 force-directed module-depen
   <img src="promo-screenshots/ipad-landscape/08-markdown-artifact.png" alt="iPad landscape: a Markdown artifact rendered inline in the WUI, with headings, a bullet list, and a comparison table" width="720" />
 </p>
 
-<p align="center"><sub>The agent called <code>show_artifact({ kind: "markdown", … })</code> and the Markdown payload — headings, lists, and a comparison table — renders inline, themed to match the WUI. Captured by <code>npm run promo</code>.</sub></p>
+The agent called <code>show_artifact({ kind: "markdown", … })</code> and the Markdown payload — headings, lists, and a comparison table — renders inline, themed to match the WUI. 
 
 <p align="center">
   <img src="promo-screenshots/animations/showcase-tour.gif" alt="Showcase tour: scrolling through a single session that contains a markdown pitch, a live D3 streaming sparkline animation, a seaborn statistical figure, and an interactive signal-generator widget whose buttons are clicked by a fake cursor" width="720" />
 </p>
 
-<p align="center"><sub>One session, four artifact kinds, no copy-paste. The recording scrolls through (1) a Markdown pitch, (2) a live D3 streaming-sparkline animation, (3) a real seaborn statistical figure (violin + regression + correlation heatmap + KDE), then (4) clicks through the controls of an interactive signal-generator widget — sine, square, saw, noise, pause — all rendered inline by <code>show_artifact</code>. Recorded by <code>npm run promo:tour</code>.</sub></p>
+One session, four artifact kinds, no copy-paste. The recording scrolls through (1) a Markdown pitch, (2) a live D3 streaming-sparkline animation, (3) a real seaborn statistical figure (violin + regression + correlation heatmap + KDE), then (4) clicks through the controls of an interactive signal-generator widget — sine, square, saw, noise, pause — all rendered inline by <code>show_artifact</code>. 
 
 <p align="center">
   <img src="promo-screenshots/iphone-14/07-d3-graph-artifact.png" alt="D3 force-directed module graph artifact on iPhone" width="260" />
