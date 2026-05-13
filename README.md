@@ -18,10 +18,10 @@ the conversation — no copy-paste, no screen-sharing.
 Mobile view — the agent returned an interactive D3 force-directed module-dependency graph via <code>show_artifact</code> and you can drag nodes around right in the conversation. 
 
 <p align="center">
-  <img src="promo-screenshots/iphone-14/08-markdown-artifact.png" alt="iPhone mobile view: a Markdown artifact rendered inline in the WUI, pitching pi-remote-control with headings, a bullet list, a code block, a comparison table, and a blockquote" width="300" />
+  <img src="promo-screenshots/ipad-landscape/08-markdown-artifact.png" alt="iPad landscape: a Markdown artifact rendered inline in the WUI, with headings, a bullet list, and a comparison table" width="720" />
 </p>
 
-<p align="center"><sub>Inception edition — the agent called <code>show_artifact({ kind: "markdown", … })</code> and the Markdown payload it returned is itself a pitch for why <code>pi-remote-control</code> is worth installing. Headings, lists, code blocks, comparison tables and blockquotes all render inline, themed to match the WUI. Captured by <code>npm run promo</code>.</sub></p>
+<p align="center"><sub>The agent called <code>show_artifact({ kind: "markdown", … })</code> and the Markdown payload — headings, lists, and a comparison table — renders inline, themed to match the WUI. Captured by <code>npm run promo</code>.</sub></p>
 
 <p align="center">
   <img src="promo-screenshots/iphone-14/07-d3-graph-artifact.png" alt="D3 force-directed module graph artifact on iPhone" width="260" />

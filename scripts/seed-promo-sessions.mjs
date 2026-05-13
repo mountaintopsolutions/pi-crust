@@ -401,20 +401,12 @@ from a \`show_artifact\` tool call. No screen share. No copy-paste.
 - **Detached workers** — close the laptop, keep the session; reconnect from your phone
 - **Tailscale-friendly** — self-hosted, private, no third-party cloud
 
-## A code block, because of course
-\`\`\`python
-def why_install():
-    return "because your agent's output deserves better than a terminal"
-\`\`\`
-
 ## A tiny table
 | Feature          | Terminal | pi-remote-control |
 |------------------|:--------:|:-----------------:|
 | Inline charts    |    ❌    |        ✅         |
 | Drag a D3 graph  |    ❌    |        ✅         |
 | Works on iPhone  |    ❌    |        ✅         |
-
-> That's the pitch — scroll down for the install steps. 🎉
 `;
 
 await writeSession({

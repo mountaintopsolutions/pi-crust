@@ -78,7 +78,7 @@ async function waitForHtmlArtifact(page: Page, opts: { readonly minDocBytes?: nu
 }
 
 test.beforeAll(async () => {
-  for (const vp of [MOBILE, TABLET, DESKTOP]) {
+  for (const vp of [MOBILE, TABLET, DESKTOP, { name: "ipad-landscape" }]) {
     await fs.rm(path.join(OUT_ROOT, vp.name), { recursive: true, force: true });
   }
 });
@@ -134,14 +134,6 @@ for (const vp of [MOBILE, TABLET]) {
       }
     });
 
-    test("08 markdown artifact (inception pitch)", async ({ page }) => {
-      await page.goto("/");
-      await selectSession(page, /Why pi-remote-control/);
-      await page.locator('[data-testid="artifact-markdown"]').first().waitFor({ state: "attached", timeout: 10_000 });
-      await page.waitForTimeout(300);
-      await shot(page, vp.name, "08-markdown-artifact");
-    });
-
     test("07 d3 force-graph artifact", async ({ page }) => {
       await page.goto("/");
       await selectSession(page, /Module map/);
@@ -152,6 +144,27 @@ for (const vp of [MOBILE, TABLET]) {
     });
   });
 }
+
+// Dedicated iPad-landscape capture for the markdown artifact — the markdown
+// pitch reads much better with the extra horizontal real estate than it does
+// on a phone.
+const IPAD_LANDSCAPE = { name: "ipad-landscape", width: 1024, height: 768 };
+test.describe(`promo @ ${IPAD_LANDSCAPE.name} (${IPAD_LANDSCAPE.width}x${IPAD_LANDSCAPE.height})`, () => {
+  test.use({
+    viewport: { width: IPAD_LANDSCAPE.width, height: IPAD_LANDSCAPE.height },
+    hasTouch: true,
+    isMobile: false,
+    deviceScaleFactor: 2,
+  });
+
+  test("08 markdown artifact", async ({ page }) => {
+    await page.goto("/");
+    await selectSession(page, /Why pi-remote-control/);
+    await page.locator('[data-testid="artifact-markdown"]').first().waitFor({ state: "attached", timeout: 10_000 });
+    await page.waitForTimeout(300);
+    await shot(page, IPAD_LANDSCAPE.name, "08-markdown-artifact");
+  });
+});
 
 test.describe(`promo @ ${DESKTOP.name} (${DESKTOP.width}x${DESKTOP.height})`, () => {
   test.use({
