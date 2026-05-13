@@ -537,6 +537,16 @@ function pickRenderableRepresentation(
         );
       }
     }
+    if (mime === "text/markdown" && typeof rep.text === "string") {
+      return (
+        <section
+          className="artifact-preview artifact-markdown"
+          data-testid="artifact-markdown"
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{rep.text}</ReactMarkdown>
+        </section>
+      );
+    }
     if (mime === "text/html" && typeof rep.html === "string") {
       return (
         <iframe

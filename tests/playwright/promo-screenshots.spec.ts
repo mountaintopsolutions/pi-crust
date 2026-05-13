@@ -134,6 +134,14 @@ for (const vp of [MOBILE, TABLET]) {
       }
     });
 
+    test("08 markdown artifact (inception pitch)", async ({ page }) => {
+      await page.goto("/");
+      await selectSession(page, /Why pi-remote-control/);
+      await page.locator('[data-testid="artifact-markdown"]').first().waitFor({ state: "attached", timeout: 10_000 });
+      await page.waitForTimeout(300);
+      await shot(page, vp.name, "08-markdown-artifact");
+    });
+
     test("07 d3 force-graph artifact", async ({ page }) => {
       await page.goto("/");
       await selectSession(page, /Module map/);

@@ -386,4 +386,61 @@ await writeSession({
   ],
 });
 
+// ───────────────────────────────────────────────────────────────────────
+// Session 6: Markdown artifact (inception — the markdown is itself the pitch)
+// ───────────────────────────────────────────────────────────────────────
+
+const inceptionMarkdown = `# Why pi-remote-control? 👋
+
+You are reading this **inside the agent's reply**, on your phone, rendered
+from a \`show_artifact\` tool call. No screen share. No copy-paste.
+
+## What you get
+- **Mobile-first WUI** — drive long-lived \`pi\` sessions from any browser
+- **Rich artifacts inline** — Markdown, images, Vega-Lite, D3, HTML, JSON, tables
+- **Detached workers** — close the laptop, keep the session; reconnect from your phone
+- **Tailscale-friendly** — self-hosted, private, no third-party cloud
+
+## A code block, because of course
+\`\`\`python
+def why_install():
+    return "because your agent's output deserves better than a terminal"
+\`\`\`
+
+## A tiny table
+| Feature          | Terminal | pi-remote-control |
+|------------------|:--------:|:-----------------:|
+| Inline charts    |    ❌    |        ✅         |
+| Drag a D3 graph  |    ❌    |        ✅         |
+| Works on iPhone  |    ❌    |        ✅         |
+
+> That's the pitch — scroll down for the install steps. 🎉
+`;
+
+await writeSession({
+  order: 6,
+  id: "promo-markdown-pitch",
+  name: "Why pi-remote-control?",
+  messages: [
+    { role: "user", content: "Make me a quick one-pager I can show a teammate explaining why I'd install pi-remote-control.", timestamp: 1700000050100 },
+    { role: "assistant", content: "Easiest way is to just render it as a markdown artifact — that way they see exactly the kind of rich output the WUI gives you.", timestamp: 1700000050200 },
+    {
+      role: "custom",
+      content: "Why pi-remote-control?",
+      timestamp: 1700000050300,
+      customType: "artifact",
+      details: {
+        version: 1,
+        artifactGroupId: "promo-markdown-pitch-group",
+        caption: "Why pi-remote-control?",
+        artifacts: [
+          { mime: "text/markdown", text: inceptionMarkdown },
+          { mime: "text/plain", text: inceptionMarkdown },
+        ],
+      },
+    },
+    { role: "assistant", content: "Inception complete — the markdown above was rendered inline by `show_artifact`. That's the whole pitch.", timestamp: 1700000050400 },
+  ],
+});
+
 console.log("done seeding promo sessions");

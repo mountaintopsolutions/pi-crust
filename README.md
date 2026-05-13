@@ -17,50 +17,11 @@ the conversation — no copy-paste, no screen-sharing.
 
 Mobile view — the agent returned an interactive D3 force-directed module-dependency graph via <code>show_artifact</code> and you can drag nodes around right in the conversation. 
 
-### A tiny `show_artifact` example (inception edition)
+<p align="center">
+  <img src="promo-screenshots/iphone-14/08-markdown-artifact.png" alt="iPhone mobile view: a Markdown artifact rendered inline in the WUI, pitching pi-remote-control with headings, a bullet list, a code block, a comparison table, and a blockquote" width="300" />
+</p>
 
-Your agent can return rich Markdown directly into the conversation. Here is
-the exact kind of call the agent makes — and yes, the Markdown payload below
-is itself a pitch for why `pi-remote-control` is worth installing:
-
-```ts
-show_artifact({
-  kind: "markdown",
-  title: "Why pi-remote-control?",
-  markdown: `
-# Why pi-remote-control? 👋
-
-You are reading this **inside the agent's reply**, on your phone, rendered
-from a \`show_artifact\` tool call. No screen share. No copy-paste.
-
-## What you get
-- **Mobile-first WUI** — drive long-lived \`pi\` sessions from any browser
-- **Rich artifacts inline** — Markdown, images, Vega-Lite, D3, HTML, JSON, tables
-- **Detached workers** — close the laptop, keep the session; reconnect from your phone
-- **Tailscale-friendly** — self-hosted, private, no third-party cloud
-
-## A code block, because of course
-\`\`\`python
-def why_install():
-    return "because your agent's output deserves better than a terminal"
-\`\`\`
-
-## A tiny table
-| Feature          | Terminal | pi-remote-control |
-|------------------|:--------:|:-----------------:|
-| Inline charts    |    ❌    |        ✅         |
-| Drag a D3 graph  |    ❌    |        ✅         |
-| Works on iPhone  |    ❌    |        ✅         |
-
-> That's the pitch — scroll down for the install steps. 🎉
-`
-})
-```
-
-Rendered on a phone, that call becomes a fully styled Markdown card right
-in the conversation — headings, lists, code blocks, tables, and blockquotes
-all themed to match the WUI. The same mechanism powers every other artifact
-below.
+<p align="center"><sub>Inception edition — the agent called <code>show_artifact({ kind: "markdown", … })</code> and the Markdown payload it returned is itself a pitch for why <code>pi-remote-control</code> is worth installing. Headings, lists, code blocks, comparison tables and blockquotes all render inline, themed to match the WUI. Captured by <code>npm run promo</code>.</sub></p>
 
 <p align="center">
   <img src="promo-screenshots/iphone-14/07-d3-graph-artifact.png" alt="D3 force-directed module graph artifact on iPhone" width="260" />
@@ -191,6 +152,8 @@ tailnet.
 | `PI_REMOTE_CRON_FILE`             | `~/.pi/agent/cron-jobs.json`                     | cron job store |
 | `PI_REMOTE_CLIENT_EVENT_LOG`      | `<cwd>/logs/client-events.jsonl`                 | client/server telemetry log |
 | `PI_REMOTE_ADAPTER`               | `pirpc`                                          | `pirpc` (default) / `pi-sdk` / `mock` (with `PI_REMOTE_USE_MOCK=1`) |
+| `PI_REMOTE_DISABLE_CEMOODY_ARTIFACT` | unset                                          | set to `1` to skip auto-loading the bundled `@cemoody/pi-artifact` extension (`display()` tool) |
+| `PI_REMOTE_CEMOODY_ARTIFACT_PATH` | unset                                            | override path to a local checkout of `@cemoody/pi-artifact` (entry-point file) |
 | `VITE_PI_REMOTE_PROXY_TARGET`     | `http://127.0.0.1:8787`                          | API target the vite dev proxy talks to |
 | `VITE_PI_REMOTE_HMR`              | unset                                            | set to `1` to re-enable Vite HMR |
 
@@ -198,7 +161,10 @@ tailnet.
 
 - **`pirpc` (default).** Runs each session in a detached `pi --mode rpc`
   supervisor process so live sessions survive API restarts. Loads the
-  bundled `show_artifact` extension. Best for real use.
+  bundled `show_artifact` extension **and** auto-registers
+  [`@cemoody/pi-artifact`](https://github.com/cemoody/pi-artifact) (the
+  `display()` tool for multi-MIME inline artifacts) when it's installed as
+  an npm dep. Best for real use.
 - **`pi-sdk`.** In-process Pi SDK adapter — no subprocess, no detach. Use
   when you don't need the supervisor.
 - **`mock`** (`PI_REMOTE_USE_MOCK=1`). Pure in-memory mock for offline
