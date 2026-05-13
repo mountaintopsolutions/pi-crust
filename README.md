@@ -120,33 +120,41 @@ so:
 
 ## Quick start
 
-```bash
-git clone https://github.com/cemoody/pi-remote-control.git
-cd pi-remote-control
-npm install
-
-# Terminal 1: HTTP+SSE API (pi RPC adapter by default; bundles the
-# show_artifact extension automatically per session).
-npm run dev:api
-
-# Terminal 2: Vite dev server for the WUI.
-npm run dev
-```
-
-For long-running dev boxes, prefer the supervised variants — they run the
-dev servers under `scripts/dev-loop.sh`, which (a) puts the child in its
-own process group so it can be cleaned up atomically, and (b) frees the
-TCP port before each restart so a stale orphan can't pin the loop into an
-EADDRINUSE crash-loop:
+One command. Cold machine, no clone, no `npm install` step, no separate
+terminals — it installs `pi-remote-control` **and the `pi` coding-agent
+itself** as a transitive dependency, builds the WUI, and serves the API +
+WUI from the same process:
 
 ```bash
-npm run dev:api:loop   # supervises dev:api on port 8787
-npm run dev:web:loop   # supervises vite dev on its default port
+npx -y -p github:cemoody/pi-remote-control pi-remote-control
 ```
 
-Browse to `http://localhost:5173/`. On Tailscale, hit
-`http://<tailnet-ip>:5173/?session=<session-id>` from any device on your
-tailnet.
+Then open the URL it prints (default `http://localhost:8787/`).
+
+Smoke-tested in a fresh `node:22-bookworm` container as the non-root
+`node` user (uid 1000), no caches:
+
+- **~30 s** first-ever run — git clone, `npm install`, `vite build`, then boot
+- **~15 s** on a warm npm cache (subsequent runs)
+
+> **Note on auth.** While this repo is private, the one-liner needs a
+> GitHub token — set one via `gh auth login` or `GH_TOKEN`, plus a git
+> `insteadOf` rewrite so npm's hardcoded `ssh://git@github.com/` shortcut
+> resolves over HTTPS. Once the repo is public it's literally just the
+> one line above.
+
+Knobs that matter most for the one-liner:
+
+```bash
+PI_REMOTE_API_PORT=8787   \   # port (also the URL you visit)
+PI_REMOTE_API_HOST=0.0.0.0 \  # share on a tailnet / LAN
+PI_REMOTE_USE_MOCK=1       \  # offline mock adapter (no `pi` binary needed)
+npx -y -p github:cemoody/pi-remote-control pi-remote-control
+```
+
+Want to hack on the code instead? See [Development](#development) for the
+old two-terminal `git clone` + `npm run dev`/`dev:api` loop — that path
+still works and has HMR.
 
 ### Common env
 
