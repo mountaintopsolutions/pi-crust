@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+/**
+ * Single-process launcher for pi-remote-control.
+ *
+ * Boots the HTTP+SSE API and (when dist/ is present) has it serve the built
+ * Vite WUI from the same port. Designed to be invoked via:
+ *
+ *   npx -y -p github:cemoody/pi-remote-control pi-remote-control
+ *
+ * On install (`npm install` after npx clones), the `prepare` script runs
+ * `vite build` and produces dist/. This launcher then points the API at it
+ * via PI_REMOTE_UI_DIR so a single Node process hosts everything.
+ *
+ * Env knobs:
+ *   PI_REMOTE_API_PORT   port to bind (default 8787)
+ *   PI_REMOTE_API_HOST   bind host (default 127.0.0.1, override to 0.0.0.0
+ *                        when sharing on a tailnet)
+ *   PI_REMOTE_OPEN       set to "0" to skip opening the system browser
+ *   PI_REMOTE_ADAPTER    "pirpc" (default) / "pi-sdk" / "mock"
+ *   PI_REMOTE_USE_MOCK   set to "1" for the offline mock adapter
+ */
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import path from "node:path";
+import os from "node:os";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, "..");
+const distDir = path.join(repoRoot, "dist");
+const apiEntry = path.join(repoRoot, "src/server/http-api-server.ts");
+
+const port = process.env.PI_REMOTE_API_PORT ?? "8787";
+const host = process.env.PI_REMOTE_API_HOST ?? "127.0.0.1";
+
+// Resolve tsx via Node's module resolution so it works whether tsx lives in
+// repoRoot/node_modules (local dev) or hoisted to a sibling node_modules
+// (typical npx-from-tarball / github layout).
+const requireFromHere = createRequire(import.meta.url);
+let tsxCli;
+const tsxCandidates = [
+  // 1. Standard Node module resolution from this file's location.
+  () => requireFromHere.resolve("tsx/dist/cli.mjs"),
+  // 2. Local dev: repoRoot/node_modules/tsx (also covered by #1, kept for safety).
+  () => {
+    const p = path.join(repoRoot, "node_modules/tsx/dist/cli.mjs");
+    if (existsSync(p)) return p;
+    throw new Error("not at " + p);
+  },
+  // 3. npx layout: sibling node_modules (one level up from our package).
+  () => {
+    const p = path.resolve(repoRoot, "..", "tsx/dist/cli.mjs");
+    if (existsSync(p)) return p;
+    throw new Error("not at " + p);
+  },
+];
+let lastErr;
+for (const lookup of tsxCandidates) {
+  try { tsxCli = lookup(); break; } catch (e) { lastErr = e; }
+}
+if (!tsxCli) {
+  console.error("[pi-remote-control] tsx is not installed. Did `npm install` succeed?");
+  console.error("  repoRoot         = " + repoRoot);
+  console.error("  import.meta.url  = " + import.meta.url);
+  console.error("  last resolve err = " + (lastErr && lastErr.message));
+  process.exit(1);
+}
+if (!existsSync(apiEntry)) {
+  console.error(`[pi-remote-control] API entry missing: ${apiEntry}`);
+  process.exit(1);
+}
+if (!existsSync(distDir)) {
+  console.warn("[pi-remote-control] dist/ not found — falling back to API-only mode.");
+  console.warn("  Run `npm run build` to produce the WUI, then re-run.");
+}
+
+const env = {
+  ...process.env,
+  PI_REMOTE_API_PORT: port,
+  PI_REMOTE_API_HOST: host,
+  ...(existsSync(distDir) ? { PI_REMOTE_UI_DIR: distDir } : {}),
+};
+
+const url = `http://${host === "0.0.0.0" ? "localhost" : host}:${port}/`;
+
+console.log("");
+console.log("  pi-remote-control");
+console.log("  ─────────────────");
+console.log(`  WUI + API  →  ${url}`);
+console.log(`  bind       →  ${host}:${port}`);
+console.log(`  adapter    →  ${env.PI_REMOTE_ADAPTER ?? (env.PI_REMOTE_USE_MOCK === "1" ? "mock" : "pirpc")}`);
+console.log("");
+console.log("  Tailscale tip: re-run with PI_REMOTE_API_HOST=0.0.0.0");
+console.log("  Stop: Ctrl-C");
+console.log("");
+
+const child = spawn(process.execPath, [tsxCli, apiEntry], { env, stdio: "inherit", cwd: repoRoot });
+
+// Best-effort: open the system browser once the server is up.
+if (process.env.PI_REMOTE_OPEN !== "0") {
+  const probe = async () => {
+    for (let i = 0; i < 80; i++) {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+        if (res.ok) {
+          const opener = os.platform() === "darwin" ? "open"
+                      : os.platform() === "win32" ? "start"
+                      : "xdg-open";
+          spawn(opener, [url], { stdio: "ignore", detached: true }).unref();
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  };
+  probe().catch(() => {});
+}
+
+const forward = (sig) => { try { child.kill(sig); } catch {} };
+process.on("SIGINT",  () => forward("SIGINT"));
+process.on("SIGTERM", () => forward("SIGTERM"));
+child.on("exit", (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  else process.exit(code ?? 0);
+});

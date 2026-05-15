@@ -4,13 +4,26 @@
   "private": true,
   "type": "module",
   "description": "Mobile-first self-hosted web control plane for many concurrent Pi coding-agent sessions.",
+  "bin": {
+    "pi-remote-control": "bin/pi-remote-control.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "public",
+    "index.html",
+    "vite.config.ts",
+    "tsconfig.json"
+  ],
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx watch --clear-screen=false src/server/http-api-server.ts",
     "dev:api:once": "tsx src/server/http-api-server.ts",
     "dev:api:loop": "scripts/dev-loop.sh api 8787 -- npm run dev:api",
     "dev:web:loop": "scripts/dev-loop.sh web '' -- npm run dev -- --host 0.0.0.0",
-
+    "start": "node bin/pi-remote-control.mjs",
+    "prepare": "test -f dist/index.html || vite build",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -32,6 +45,7 @@
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tsx": "^4.21.0",
     "typebox": "^1.1.24",
     "vega-embed": "^7.1.0",
     "ws": "^8.20.0"
@@ -46,7 +60,6 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^29.1.1",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.0",
     "vite": "^8.0.11",
     "vitest": "^4.0.0"

@@ -39,6 +39,15 @@ interface HttpApiServerContext extends HttpApiServerOptions {
   readonly coldSessionFiles: Map<string, string>;
   readonly clientEventLog?: ClientEventLog;
   /**
+   * Dedupes concurrent getOrOpenSession() calls for the same sessionId.
+   * Without this, page-load races (initial GET + SSE subscribe) each call
+   * openSession() before either has registered the result, spawning two
+   * supervisors. The second adapter connection then evicts the first inside
+   * the supervisor's onConnection handler, causing
+   * "Supervisor connection closed before frame arrived" on the first.
+   */
+  readonly openingSessions: Map<string, Promise<import("./session/session-registry.js").RegisteredSession>>;
+  /**
    * Active SSE streams keyed by `tabSessionId`. When a new SSE arrives for a
    * tab that already has one open, the previous one is closed so the browser
    * promptly frees the underlying TCP connection. Without this, leaked
@@ -77,6 +86,7 @@ export function createHttpApiServer(options: HttpApiServerOptions): http.Server 
   const context: HttpApiServerContext = {
     ...options,
     coldSessionFiles: new Map(),
+    openingSessions: new Map(),
     activeSseByTab: new Map(),
     ...(options.clientEventLogPath ? { clientEventLog: createClientEventLog(options.clientEventLogPath) } : {}),
   };
@@ -233,6 +243,19 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
     const state = await created.handle.getState();
     context.coldSessionFiles.set(created.id, created.sessionFile);
     return sendJson(res, 200, toSessionCard(state));
+  }
+
+  // Static-UI fallback. When PI_REMOTE_UI_DIR is set (typically by the
+  // `bin/pi-remote-control` launcher pointing at the built Vite output), any
+  // GET that didn't match an /api route falls through to file serving so a
+  // single process can host both the API and the WUI. SPA semantics: unknown
+  // routes fall back to index.html so client-side routes Just Work.
+  if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
+    const uiDir = process.env.PI_REMOTE_UI_DIR;
+    if (uiDir) {
+      const served = await tryServeStatic(uiDir, url.pathname, res);
+      if (served) return;
+    }
   }
 
   // Artifact files live at <session.cwd>/.pi/artifacts/<sessionId>/<file>.
@@ -544,9 +567,16 @@ async function handleArtifact(
 
 async function getOrOpenSession(context: HttpApiServerContext, sessionId: string) {
   if (context.registry.hasSession(sessionId)) return context.registry.getSession(sessionId);
+  // De-duplicate concurrent opens for the same sessionId. See the
+  // openingSessions docstring on HttpApiServerContext for why.
+  const inflight = context.openingSessions.get(sessionId);
+  if (inflight) return inflight;
   const sessionFile = context.coldSessionFiles.get(sessionId);
   if (!sessionFile) throw new Error(`Unknown session: ${sessionId}`);
-  return context.registry.openSession(sessionFile);
+  const pending = context.registry.openSession(sessionFile)
+    .finally(() => { context.openingSessions.delete(sessionId); });
+  context.openingSessions.set(sessionId, pending);
+  return pending;
 }
 
 function toSessionCard(state: Awaited<ReturnType<import("./pi/types.js").PiSessionHandle["getState"]>>) {
@@ -714,6 +744,60 @@ async function handleCron(req: http.IncomingMessage, res: http.ServerResponse, u
   }
 
   return sendJson(res, 405, { error: "method not allowed" });
+}
+
+const STATIC_MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js":   "application/javascript; charset=utf-8",
+  ".mjs":  "application/javascript; charset=utf-8",
+  ".css":  "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg":  "image/svg+xml",
+  ".png":  "image/png",
+  ".jpg":  "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif":  "image/gif",
+  ".webp": "image/webp",
+  ".ico":  "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2":"font/woff2",
+  ".map":  "application/json; charset=utf-8",
+  ".txt":  "text/plain; charset=utf-8",
+};
+
+async function tryServeStatic(rootDir: string, pathname: string, res: http.ServerResponse): Promise<boolean> {
+  const absRoot = path.resolve(rootDir);
+  const rel = path.posix.normalize(pathname).replace(/^\/+/, "");
+  let candidate = path.resolve(absRoot, rel);
+  if (!candidate.startsWith(absRoot)) return false;
+  let stat: fs.Stats | null = null;
+  try { stat = await fsp.stat(candidate); } catch { stat = null; }
+  if (stat && stat.isDirectory()) {
+    candidate = path.join(candidate, "index.html");
+    try { stat = await fsp.stat(candidate); } catch { stat = null; }
+  }
+  if (!stat || !stat.isFile()) {
+    // SPA fallback for unknown routes — but only if the request didn't look
+    // like an asset (so a missing .js / .css still 404s cleanly).
+    if (/\.[a-z0-9]{2,5}$/i.test(pathname)) return false;
+    candidate = path.join(absRoot, "index.html");
+    try { stat = await fsp.stat(candidate); } catch { return false; }
+    if (!stat.isFile()) return false;
+  }
+  const ext = path.extname(candidate).toLowerCase();
+  const mime = STATIC_MIME[ext] ?? "application/octet-stream";
+  res.statusCode = 200;
+  res.setHeader("Content-Type", mime);
+  res.setHeader("Content-Length", String(stat.size));
+  if (candidate.endsWith("index.html")) res.setHeader("Cache-Control", "no-cache");
+  else res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  await new Promise<void>((resolve, reject) => {
+    const stream = fs.createReadStream(candidate);
+    stream.on("error", reject);
+    stream.on("end", () => resolve());
+    stream.pipe(res);
+  });
+  return true;
 }
 
 function toCronJobView(job: CronJob) {
