@@ -134,6 +134,18 @@ async function startDefaultServer(): Promise<void> {
   } catch (err) {
     console.warn(`reattachAll failed: ${err instanceof Error ? err.message : err}`);
   }
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`pi-remote-control API: port ${port} on ${host} is already in use.`);
+      console.error(`hint: find the holder with: lsof -ti :${port}    (or: ss -tlnp | grep ${port})`);
+      // Exit cleanly so a supervisor loop can back off rather than crash-loop
+      // on an unhandled 'error' event. Code 2 is the canonical "bad config"
+      // exit code outer loops can react to.
+      process.exit(2);
+    }
+    console.error(`pi-remote-control API: server error: ${error.message}`);
+    process.exit(1);
+  });
   server.listen(port, host, () => {
     console.log(`pi-remote-control API listening on http://${host}:${port}`);
     console.log(`adapter=${adapterKind}`);
@@ -147,7 +159,13 @@ async function startDefaultServer(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`received ${signal}, detaching workers...`);
-    const timer = setTimeout(() => { console.warn("detach timed out, exiting"); process.exit(0); }, 3000);
+    // 8s budget (was 3s) to be defensive against many concurrent supervisors
+    // taking slightly longer to FIN their sockets. Detach is parallel via
+    // Promise.all and each socket close is bounded to 100ms, so in practice
+    // detach completes in <1s even for 30+ live sessions — 8s is pure
+    // headroom. Hitting this timeout is a bug worth investigating; the
+    // process exits anyway so the supervisors aren't blocked indefinitely.
+    const timer = setTimeout(() => { console.warn("detach timed out, exiting"); process.exit(0); }, 8000);
     timer.unref();
     void Promise.resolve()
       .then(() => registry.detachAll())
