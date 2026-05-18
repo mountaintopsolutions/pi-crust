@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 beforeEach(() => {
   if (typeof window !== "undefined") {
     window.history.replaceState(null, "", "/");
+    window.localStorage.clear();
   }
 });
 import { SessionDashboard } from "../../src/web/components/SessionDashboard.js";
@@ -163,6 +164,76 @@ describe("SessionDashboard", () => {
     // The borderless variant no longer wraps the input in the rounded
     // .session-name-field card.
     expect(row!.querySelector(".session-name-field")).toBeNull();
+  });
+
+  it("opens extension settings and toggles extension enablement", async () => {
+    const api = {
+      ...makeApi(),
+      getExtensionSettings: vi.fn(async () => ({
+        disabledExtensions: ["disabled.demo"],
+        packages: ["npm:demo"],
+        extensions: {
+          commands: [],
+          activities: [{ id: "demo.activity", title: "Demo", extensionId: "demo" }],
+          routes: [],
+          diagnostics: [{ extensionId: "disabled.demo", level: "error" as const, message: "bad config" }],
+        },
+      })),
+      setExtensionEnabled: vi.fn(async (_extensionId: string, _enabled: boolean) => ({
+        applied: true,
+        diagnostics: [],
+        extensions: { commands: [], activities: [], routes: [], diagnostics: [] },
+      })),
+    } satisfies SessionDashboardApi;
+    render(<SessionDashboard api={api} />);
+    await screen.findByRole("heading", { name: "pi remote" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    await screen.findByRole("heading", { name: "Extension settings" });
+    expect(screen.getByLabelText("Installed extensions")).toHaveTextContent("bad config");
+    fireEvent.click(screen.getByLabelText(/disabled.demo/));
+    await waitFor(() => expect(api.setExtensionEnabled).toHaveBeenCalledWith("disabled.demo", true));
+  });
+
+  it("orders extension activities between New session and Schedule with Settings last", async () => {
+    const api = {
+      ...makeApi(),
+      getExtensions: vi.fn(async () => ({
+        commands: [],
+        activities: [{ id: "demo.activity", title: "Demo", extensionId: "demo" }],
+        routes: [],
+        diagnostics: [],
+      })),
+      getExtensionSettings: vi.fn(async () => ({
+        extensions: { commands: [], activities: [{ id: "demo.activity", title: "Demo", extensionId: "demo" }], routes: [], diagnostics: [] },
+      })),
+    } satisfies SessionDashboardApi;
+    render(<SessionDashboard api={api} />);
+    await screen.findByRole("button", { name: "Demo" });
+
+    expect(workspaceButtonNames()).toEqual(["New session", "Demo", "Schedule", "Settings"]);
+  });
+
+  it("reloads extensions from settings and renders new activities", async () => {
+    const api = {
+      ...makeApi(),
+      getExtensions: vi.fn(async () => ({ commands: [], activities: [], routes: [], diagnostics: [] })),
+      reloadExtensions: vi.fn(async () => ({
+        applied: true,
+        diagnostics: [],
+        extensions: { commands: [], activities: [{ id: "demo.activity", title: "Demo", extensionId: "demo" }], routes: [], diagnostics: [] },
+      })),
+    } satisfies SessionDashboardApi;
+    render(<SessionDashboard api={api} />);
+    await screen.findByRole("heading", { name: "pi remote" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reload" }));
+
+    await screen.findByRole("button", { name: "Demo" });
+    expect(api.reloadExtensions).toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Extensions reloaded.");
   });
 
   it("polls session statuses without selecting sessions", async () => {
@@ -1110,6 +1181,10 @@ describe("SessionDashboard", () => {
     await waitFor(() => expect(screen.queryByLabelText("Message queues")).toBeNull());
   });
 });
+
+function workspaceButtonNames(): string[] {
+  return within(screen.getByRole("navigation", { name: "Workspace" })).getAllByRole("button").map((button) => button.textContent?.replace(/\s+/g, " ").trim() ?? "");
+}
 
 function sessionListButtonNames(): string[] {
   return within(screen.getByRole("list")).getAllByRole("button").map((button) => button.querySelector(".session-row-name")?.textContent ?? "");

@@ -165,6 +165,56 @@ export interface CronApi {
   runNow(id: string): Promise<CronRunResponse>;
 }
 
+export interface ExtensionCommandInfo {
+  readonly id: string;
+  readonly invocationName: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly slashName?: string;
+  readonly extensionId: string;
+}
+
+export interface ExtensionActivityInfo {
+  readonly id: string;
+  readonly title: string;
+  readonly order?: number;
+  readonly extensionId: string;
+  readonly webModuleUrl?: string;
+}
+
+export interface ExtensionRouteInfo {
+  readonly method: string;
+  readonly path: string;
+  readonly mount?: "api" | "extension";
+  readonly extensionId: string;
+}
+
+export interface ExtensionDiagnosticInfo {
+  readonly extensionId: string;
+  readonly level: "error" | "warning";
+  readonly message: string;
+}
+
+export interface ExtensionRegistryInfo {
+  readonly commands: readonly ExtensionCommandInfo[];
+  readonly activities: readonly ExtensionActivityInfo[];
+  readonly routes: readonly ExtensionRouteInfo[];
+  readonly diagnostics: readonly ExtensionDiagnosticInfo[];
+}
+
+export interface ExtensionReloadResponse {
+  readonly applied: boolean;
+  readonly diagnostics: readonly ExtensionDiagnosticInfo[];
+  readonly extensions: ExtensionRegistryInfo;
+}
+
+export interface ExtensionSettingsResponse {
+  readonly packages?: readonly unknown[];
+  readonly projectPackages?: readonly unknown[];
+  readonly disabledExtensions?: readonly string[];
+  readonly extensions: ExtensionRegistryInfo;
+}
+
 export interface ServerInfo {
   readonly gitSha: string;
   readonly adapter: string;
@@ -177,11 +227,20 @@ export interface ServerInfo {
 }
 
 export interface SessionDashboardApi {
+  /** Generic host HTTP helper for web extensions. Paths are relative to PRC's API origin, e.g. /api/extensions/x/jobs. */
+  request?<T = unknown>(path: string, options?: { readonly method?: string; readonly body?: unknown }): Promise<T>;
   getDefaultCwd?(): Promise<string>;
   /** Server-side user home directory, used as the New Session dialog default. */
   getHomeCwd?(): Promise<string | undefined>;
   /** Snapshot of the server's identity (used for the help dialog SHA). */
   getServerInfo?(): Promise<ServerInfo>;
+  getExtensions?(): Promise<ExtensionRegistryInfo>;
+  reloadExtensions?(): Promise<ExtensionReloadResponse>;
+  getExtensionSettings?(): Promise<ExtensionSettingsResponse>;
+  setExtensionEnabled?(extensionId: string, enabled: boolean): Promise<ExtensionReloadResponse>;
+  installExtensionPackage?(source: string): Promise<ExtensionReloadResponse>;
+  removeExtensionPackage?(source: string): Promise<ExtensionReloadResponse>;
+  runExtensionCommand?(extensionId: string, invocationName: string, input?: unknown): Promise<unknown>;
   listSessions(cwd?: string): Promise<readonly SessionCardData[]>;
   /** Lightweight sidebar status refresh; does not open cold sessions or fetch messages. */
   listSessionStatuses?(cwd?: string): Promise<readonly SessionCardData[]>;

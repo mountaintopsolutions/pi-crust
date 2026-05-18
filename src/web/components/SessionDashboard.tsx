@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ExtensionUiRequest, ExtensionUiResponse, WireMessage } from "../../shared/protocol.js";
-import type { DashboardArtifact, DashboardMessage, DashboardToolDetails, ForkMessageOption, SessionCardData, SessionDashboardApi } from "../api/session-api.js";
+import type { DashboardArtifact, DashboardMessage, DashboardToolDetails, ExtensionRegistryInfo, ExtensionSettingsResponse, ForkMessageOption, SessionCardData, SessionDashboardApi } from "../api/session-api.js";
 import { MAX_PROMPT_CHARS } from "../../shared/limits.js";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
 import { ModelPicker } from "./ModelPicker.js";
@@ -9,9 +9,11 @@ import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
 import { ShortcutHelp } from "./ShortcutHelp.js";
 import { ExtensionUiHost } from "./ExtensionUiHost.js";
 import { CronPanel } from "./CronPanel.js";
+import { ExternalWebActivity } from "../extensions/external-web-module.js";
+import { ExtensionManagementPanel } from "./ExtensionManagementPanel.js";
 import "./session-dashboard.css";
 
-type DashboardView = "sessions" | "cron";
+type DashboardView = "sessions" | "cron" | "settings" | `extension:${string}`;
 
 export interface SessionDashboardProps {
   readonly api: SessionDashboardApi;
@@ -58,6 +60,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [steeringBySession, setSteeringBySession] = useState<Record<string, string[]>>({});
   const [followUpBySession, setFollowUpBySession] = useState<Record<string, string[]>>({});
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [extensions, setExtensions] = useState<ExtensionRegistryInfo>({ commands: [], activities: [], routes: [], diagnostics: [] });
+  const [extensionSettings, setExtensionSettings] = useState<ExtensionSettingsResponse | null>(null);
 
   const [notice, setNotice] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => {
@@ -79,6 +83,35 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [forkError, setForkError] = useState<string | null>(null);
   const [draftSeedBySession, setDraftSeedBySession] = useState<Record<string, { readonly id: string; readonly value: string }>>({});
   const streamDraftIdsRef = useRef<Record<string, string>>({});
+
+  const refreshExtensions = useCallback(async () => {
+    if (!api.getExtensions) return;
+    const extensionInfo = await api.getExtensions();
+    setExtensions(extensionInfo);
+  }, [api]);
+
+  const refreshExtensionSettings = useCallback(async () => {
+    if (!api.getExtensionSettings) return;
+    const settings = await api.getExtensionSettings();
+    setExtensionSettings(settings);
+    setExtensions(settings.extensions);
+  }, [api]);
+
+  const reloadExtensions = useCallback(async () => {
+    try {
+      if (api.reloadExtensions) {
+        const result = await api.reloadExtensions();
+        setExtensions(result.extensions);
+        if (api.getExtensionSettings) void refreshExtensionSettings();
+        setNotice(result.applied ? "Extensions reloaded." : "Extension reload failed; previous extensions are still active.");
+      } else {
+        await refreshExtensions();
+        setNotice("Extensions refreshed.");
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, [api, refreshExtensions, refreshExtensionSettings]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -109,6 +142,20 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     let cancelled = false;
     void (async () => {
       try {
+        if (api.getExtensions) {
+          try {
+            await refreshExtensions();
+          } catch {
+            // Optional capability; ignore older API servers.
+          }
+        }
+        if (api.getExtensionSettings) {
+          try {
+            await refreshExtensionSettings();
+          } catch {
+            // Optional capability; ignore older API servers.
+          }
+        }
         const defaultCwd = api.getDefaultCwd ? await api.getDefaultCwd() : "/tmp/project";
         if (cancelled) return;
         setDefaultCwd(defaultCwd);
@@ -149,7 +196,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, refreshExtensions, refreshExtensionSettings]);
 
   useEffect(() => {
     if (!api.listSessionStatuses || !defaultCwd) return;
@@ -309,6 +356,36 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   }, [namedOnly, query, sessions, sortMode, lastUserActivityById]);
 
   const activeSession = activeSessionId ? sessions.find((session) => session.id === activeSessionId) : null;
+  const extensionSlashCommands = useMemo(
+    () => extensions.commands.map((command) => command.slashName).filter((slashName): slashName is string => Boolean(slashName)),
+    [extensions.commands],
+  );
+  const commandSuggestions = useMemo(
+    () => unique(["model", "settings", "tree", "compact", "session", "new", "clear", "fork", "clone", ...extensionSlashCommands]),
+    [extensionSlashCommands],
+  );
+  const activeExtensionActivity = view.startsWith("extension:")
+    ? extensions.activities.find((activity) => activity.id === view.slice("extension:".length))
+    : undefined;
+  const openSessionFromExtension = useCallback(async (sessionId: string) => {
+    setView("sessions");
+    setActiveSessionId(sessionId);
+    try {
+      const refreshed = await api.listSessions(defaultCwd);
+      let merged: readonly SessionCardData[] = refreshed;
+      if (!refreshed.some((session) => session.id === sessionId) && api.getSession) {
+        try {
+          const spawned = await api.getSession(sessionId);
+          merged = [spawned, ...refreshed];
+        } catch {
+          // Keep the active id; the session may become listable shortly.
+        }
+      }
+      setSessions(merged);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, [api, defaultCwd]);
 
   async function createSession(input?: { readonly cwd?: string; readonly sessionName?: string }) {
     setError(null);
@@ -593,10 +670,25 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         return;
       case "help":
       case "hotkeys":
-        setNotice("Available: /model, /session, /new (alias /clear), /fork, /clone, /name <name>, /quit, /help");
+        setNotice(`Available: ${commandSuggestions.map((command) => `/${command}`).join(", ")}, /name <name>, /quit, /help`);
         return;
-      default:
+      default: {
+        const extensionCommand = extensions.commands.find((command) => command.slashName === name);
+        if (extensionCommand && api.runExtensionCommand) {
+          try {
+            const response = await api.runExtensionCommand(extensionCommand.extensionId, extensionCommand.invocationName, {
+              argv,
+              sessionId: activeSession.id,
+              cwd: activeSession.cwd,
+            }) as { result?: unknown } | undefined;
+            setNotice(formatExtensionCommandResult(response?.result, extensionCommand.title));
+          } catch (caught) {
+            setNotice(errorMessage(caught));
+          }
+          return;
+        }
         setNotice(`Command \"/${name}\" is recognised in the TUI but not yet implemented in the WUI.`);
+      }
     }
   }
 
@@ -689,6 +781,21 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
               </span>
             ) : "New session"}
           </button>
+          {extensions.activities.map((activity) => {
+            const activityView = `extension:${activity.id}` as DashboardView;
+            return (
+              <button
+                key={activity.id}
+                type="button"
+                className={`sidebar-menu-item ${view === activityView ? "active" : ""}`}
+                aria-pressed={view === activityView}
+                onClick={() => setView(view === activityView ? "sessions" : activityView)}
+              >
+                <ExtensionGlyph />
+                {activity.title}
+              </button>
+            );
+          })}
           <button
             type="button"
             className={`sidebar-menu-item ${view === "cron" ? "active" : ""}`}
@@ -698,6 +805,17 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
             <CronGlyph />
             Schedule
           </button>
+          {api.getExtensionSettings || api.setExtensionEnabled || api.installExtensionPackage || api.reloadExtensions ? (
+            <button
+              type="button"
+              className={`sidebar-menu-item ${view === "settings" ? "active" : ""}`}
+              aria-pressed={view === "settings"}
+              onClick={() => setView(view === "settings" ? "sessions" : "settings")}
+            >
+              <ExtensionGlyph />
+              Settings
+            </button>
+          ) : null}
         </nav>
 
         <section aria-label="Session browser controls" className="session-controls">
@@ -762,39 +880,37 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         </ul>
       </aside>
 
-      <section className="active-session" aria-label={view === "cron" ? "Schedule" : "Active session"}>
-        {view === "cron" && api.cron ? (
+      <section className="active-session" aria-label={view === "settings" ? "Extension settings" : view === "cron" ? "Schedule" : activeExtensionActivity ? activeExtensionActivity.title : "Active session"}>
+        {view === "settings" ? (
+          <ExtensionManagementPanel
+            extensions={extensions}
+            settings={extensionSettings}
+            onReload={reloadExtensions}
+            {...(api.setExtensionEnabled ? { onToggle: async (extensionId: string, enabled: boolean) => {
+              const result = await api.setExtensionEnabled!(extensionId, enabled);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+            {...(api.installExtensionPackage ? { onInstall: async (source: string) => {
+              const result = await api.installExtensionPackage!(source);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+            {...(api.removeExtensionPackage ? { onRemove: async (source: string) => {
+              const result = await api.removeExtensionPackage!(source);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+          />
+        ) : activeExtensionActivity ? (
+          activeExtensionActivity.webModuleUrl
+            ? <ExternalWebActivity activity={activeExtensionActivity} extensions={extensions} api={api} navigation={{ openSession: openSessionFromExtension }} />
+            : <ExtensionActivityPanel activity={activeExtensionActivity} extensions={extensions} />
+        ) : view === "cron" && api.cron ? (
           <CronPanel
             api={api.cron}
             defaultCwd={defaultCwd}
-            onOpenSession={(sessionId) => {
-              setView("sessions");
-              setActiveSessionId(sessionId);
-              void (async () => {
-                try {
-                  const refreshed = await api.listSessions(defaultCwd);
-                  // The spawned session may live outside defaultCwd (cron
-                  // jobs commonly run with a different cwd than the
-                  // dashboard was loaded with), in which case listSessions
-                  // — filtered server-side — won't include it. Fetch it
-                  // explicitly so the active-session pane has data to render.
-                  let merged: readonly SessionCardData[] = refreshed;
-                  if (!refreshed.some((session) => session.id === sessionId) && api.getSession) {
-                    try {
-                      const spawned = await api.getSession(sessionId);
-                      merged = [spawned, ...refreshed];
-                    } catch {
-                      // If getSession fails we still set the activeSessionId;
-                      // the user will see the empty-state message but can
-                      // recover via the URL or sidebar.
-                    }
-                  }
-                  setSessions(merged);
-                } catch (caught) {
-                  setError(errorMessage(caught));
-                }
-              })();
-            }}
+            onOpenSession={(sessionId) => { void openSessionFromExtension(sessionId); }}
           />
         ) : activeSession ? (
           <>
@@ -877,7 +993,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 steeringQueue={steeringBySession[activeSession.id] ?? []}
                 followUpQueue={followUpBySession[activeSession.id] ?? []}
                 fileSuggestions={["README.md", "package.json", "src/web/main.tsx", "src/server/session/session-registry.ts"]}
-                commandSuggestions={["model", "settings", "tree", "compact", "session", "new", "clear", "fork", "clone"]}
+                commandSuggestions={commandSuggestions}
                 statusText={activeSession.status}
                 statusCwd={activeSession.cwd}
                 {...(activeSession.model === undefined ? {} : { statusModel: activeSession.model })}
@@ -1513,6 +1629,55 @@ function saveUserActivityMap(map: Record<string, number>): void {
   }
 }
 
+function ExtensionActivityPanel({ activity, extensions }: { readonly activity: import("../api/session-api.js").ExtensionActivityInfo; readonly extensions: ExtensionRegistryInfo }) {
+  const commands = extensions.commands.filter((command) => command.extensionId === activity.extensionId);
+  const routes = extensions.routes.filter((route) => route.extensionId === activity.extensionId);
+  return (
+    <div className="extension-activity-panel">
+      <header>
+        <div className="active-title">
+          <h2>{activity.title}</h2>
+          <span className="active-subtitle"><code>{activity.extensionId}</code></span>
+        </div>
+      </header>
+      <div className="extension-activity-body">
+        <p>This activity was contributed by a PRC extension. Custom web rendering will be enabled as the extension framework matures.</p>
+        {commands.length > 0 ? (
+          <section>
+            <h3>Commands</h3>
+            <ul>
+              {commands.map((command) => (
+                <li key={command.invocationName}>
+                  <strong>{command.title}</strong>{command.slashName ? <span> — <code>/{command.slashName}</code></span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {routes.length > 0 ? (
+          <section>
+            <h3>Server routes</h3>
+            <ul>
+              {routes.map((route) => <li key={`${route.method}:${route.path}`}><code>{route.method} /api/extensions/{route.extensionId}{route.path}</code></li>)}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatExtensionCommandResult(result: unknown, title: string): string {
+  if (typeof result === "string" && result.trim()) return result;
+  if (typeof result === "number" || typeof result === "boolean") return String(result);
+  if (result && typeof result === "object") return `${title}: ${JSON.stringify(result)}`;
+  return `${title} completed.`;
+}
+
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
 function formatStats(
   stats: import("../api/session-api.js").SessionCardStats | undefined,
   tokenSummary: string | undefined,
@@ -1661,6 +1826,19 @@ function CronGlyph() {
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="8" cy="8" r="6" />
       <path d="M8 4.5V8l2.5 1.5" />
+    </svg>
+  );
+}
+
+function ExtensionGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6.5 2.5h3" />
+      <path d="M6.5 13.5h3" />
+      <path d="M2.5 6.5v3" />
+      <path d="M13.5 6.5v3" />
+      <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" />
+      <path d="M7 7h2v2H7z" />
     </svg>
   );
 }

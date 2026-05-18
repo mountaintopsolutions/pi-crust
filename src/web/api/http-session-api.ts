@@ -1,10 +1,14 @@
 import type { ExtensionUiResponse } from "../../shared/protocol.js";
-import type { CloneSessionResult, CronApi, CronJobInput, CronJobPatch, CronJobView, CronListResponse, CronRunResponse, DashboardMessage, ForkMessageOption, ForkSessionResult, ModelOption, NewSessionInput, PromptAttachment, ServerInfo, SessionCardData, SessionDashboardApi } from "./session-api.js";
+import type { CloneSessionResult, CronApi, CronJobInput, CronJobPatch, CronJobView, CronListResponse, CronRunResponse, DashboardMessage, ExtensionRegistryInfo, ExtensionReloadResponse, ExtensionSettingsResponse, ForkMessageOption, ForkSessionResult, ModelOption, NewSessionInput, PromptAttachment, ServerInfo, SessionCardData, SessionDashboardApi } from "./session-api.js";
 import { recordClientEvent, getTabSessionId } from "../utils/client-telemetry.js";
 
 const API_BASE = import.meta.env.VITE_PI_REMOTE_API_BASE ?? "";
 
 export class HttpSessionDashboardApi implements SessionDashboardApi {
+  async request<T = unknown>(path: string, options: { readonly method?: string; readonly body?: unknown } = {}): Promise<T> {
+    return request<T>(path, options);
+  }
+
   async getDefaultCwd(): Promise<string> {
     const health = await request<{ defaultCwd: string }>("/api/health");
     return health.defaultCwd;
@@ -17,6 +21,34 @@ export class HttpSessionDashboardApi implements SessionDashboardApi {
 
   async getServerInfo(): Promise<ServerInfo> {
     return request<ServerInfo>("/api/health");
+  }
+
+  async getExtensions(): Promise<ExtensionRegistryInfo> {
+    return request<ExtensionRegistryInfo>("/api/extensions");
+  }
+
+  async reloadExtensions(): Promise<ExtensionReloadResponse> {
+    return request<ExtensionReloadResponse>("/api/extensions/reload", { method: "POST", body: {} });
+  }
+
+  async getExtensionSettings(): Promise<ExtensionSettingsResponse> {
+    return request<ExtensionSettingsResponse>("/api/extensions/settings");
+  }
+
+  async setExtensionEnabled(extensionId: string, enabled: boolean): Promise<ExtensionReloadResponse> {
+    return request<ExtensionReloadResponse>(`/api/extensions/${encodeURIComponent(extensionId)}/enabled`, { method: "POST", body: { enabled } });
+  }
+
+  async installExtensionPackage(source: string): Promise<ExtensionReloadResponse> {
+    return request<ExtensionReloadResponse>("/api/extensions/packages", { method: "POST", body: { source } });
+  }
+
+  async removeExtensionPackage(source: string): Promise<ExtensionReloadResponse> {
+    return request<ExtensionReloadResponse>("/api/extensions/packages/remove", { method: "POST", body: { source } });
+  }
+
+  async runExtensionCommand(extensionId: string, invocationName: string, input?: unknown): Promise<unknown> {
+    return request(`/api/extensions/${encodeURIComponent(extensionId)}/commands/${encodeURIComponent(invocationName)}`, { method: "POST", body: input ?? {} });
   }
 
   async listSessions(cwd?: string): Promise<readonly SessionCardData[]> {

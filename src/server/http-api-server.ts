@@ -17,6 +17,11 @@ import { CronStore, type CronJob } from "./cron/cron-store.js";
 import { CronScheduler } from "./cron/cron-scheduler.js";
 import { parseCron, CronParseError, nextRun as cronNextRun } from "./cron/cron-expression.js";
 import { WorkerRegistry } from "./session/worker-registry.js";
+import type { PrcExtensionHost } from "../extensions/registry.js";
+import { defaultPrcConfigDir } from "../extensions/bootstrap.js";
+import { serializeExtensions } from "../extensions/metadata.js";
+import { installExtensionPackage, readPrcSettings, removeExtensionPackage, setExtensionEnabled, writePrcSettings, type PrcSettings } from "../extensions/packages.js";
+import { createPrcExtensionRuntime, type PrcExtensionRuntime } from "../extensions/runtime.js";
 
 export interface HttpApiServerOptions {
   readonly registry: SessionRegistry;
@@ -40,6 +45,12 @@ export interface HttpApiServerOptions {
    * about the running build.
    */
   readonly gitSha?: string | (() => string);
+  /** Test-first seed for PRC server extensions. Extension routes are mounted
+   * under /api/extensions/:extensionId/* and are intentionally passed in by
+   * tests/harnesses until package discovery is wired into the default server.
+   */
+  readonly extensions?: PrcExtensionHost;
+  readonly extensionRuntime?: PrcExtensionRuntime;
 }
 
 interface HttpApiServerContext extends HttpApiServerOptions {
@@ -86,6 +97,47 @@ function resolveContextGitSha(value: string | (() => string) | undefined): strin
   return "unknown";
 }
 
+function getExtensionHost(context: Pick<HttpApiServerContext, "extensions" | "extensionRuntime">): PrcExtensionHost | undefined {
+  return context.extensionRuntime?.current ?? context.extensions;
+}
+
+async function mutateExtensionSettings(
+  runtime: PrcExtensionRuntime,
+  mutation: () => Promise<PrcSettings>,
+): Promise<{ settings: PrcSettings; result: Awaited<ReturnType<PrcExtensionRuntime["reload"]>> }> {
+  const previous = await readPrcSettings(runtime.configDir);
+  const settings = await mutation();
+  const result = await runtime.reload();
+  if (!result.applied) {
+    await writePrcSettings(runtime.configDir, previous);
+    return { settings: previous, result };
+  }
+  return { settings, result };
+}
+
+function createExtensionSessionApi(registry: SessionRegistry) {
+  return {
+    create: async (input: { readonly cwd: string; readonly sessionName?: string }) => {
+      const session = await registry.createSession(input);
+      const state = await session.handle.getState();
+      return toSessionCard(state);
+    },
+    prompt: async (sessionId: string, prompt: string) => {
+      await registry.prompt(sessionId, prompt);
+    },
+    createAndPrompt: async (input: { readonly cwd: string; readonly sessionName?: string; readonly prompt: string }) => {
+      const session = await registry.createSession(input);
+      await registry.prompt(session.id, input.prompt);
+      const state = await session.handle.getState();
+      return toSessionCard(state);
+    },
+    get: async (sessionId: string) => {
+      const state = await registry.getSession(sessionId).handle.getState();
+      return toSessionCard(state);
+    },
+  };
+}
+
 function createClientEventLog(filePath: string): ClientEventLog {
   let queue: Promise<void> = Promise.resolve();
   return {
@@ -117,6 +169,12 @@ export function createHttpApiServer(options: HttpApiServerOptions): http.Server 
   });
 }
 
+function isWithinPath(candidate: string, root: string): boolean {
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedRoot = path.resolve(root);
+  return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(`${resolvedRoot}${path.sep}`);
+}
+
 function createDefaultRegistry(adapterKind: string, sessionRoot: string, projectRoot: string): SessionRegistry {
   const workerRegistry = new WorkerRegistry();
   return new SessionRegistry({
@@ -141,6 +199,16 @@ async function startDefaultServer(): Promise<void> {
       ? "pi-sdk"
       : "pirpc";
   const registry = createDefaultRegistry(adapterKind, sessionRoot, projectRoot);
+  const serverDefaultCwd = isWithinPath(process.cwd(), projectRoot) ? process.cwd() : projectRoot;
+  const extensionRuntime = await createPrcExtensionRuntime({
+    configDir: defaultPrcConfigDir(process.env),
+    cwd: projectRoot,
+    env: process.env,
+    sessions: createExtensionSessionApi(registry),
+  });
+  if (extensionRuntime.current.diagnostics.length > 0) {
+    for (const diagnostic of extensionRuntime.current.diagnostics) console.warn(`[extensions] ${diagnostic.extensionId}: ${diagnostic.message}`);
+  }
   const cronFile = path.resolve(process.env.PI_REMOTE_CRON_FILE ?? path.join(os.homedir(), ".pi", "agent", "cron-jobs.json"));
   const cronStore = new CronStore(cronFile);
   const cronScheduler = new CronScheduler({ store: cronStore, registry });
@@ -155,11 +223,12 @@ async function startDefaultServer(): Promise<void> {
     adapterKind,
     projectRoot,
     sessionRoot,
-    defaultCwd: process.cwd(),
+    defaultCwd: serverDefaultCwd,
     cronStore,
     cronScheduler,
     clientEventLogPath,
     gitSha,
+    extensionRuntime,
   });
   // Reattach any detached Pi RPC workers that survived a previous API process.
   try {
@@ -243,6 +312,70 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
   if (req.method === "POST" && url.pathname === "/api/client-event") {
     return handleClientEvent(req, res, context);
   }
+
+  if (req.method === "GET" && url.pathname === "/api/extensions") {
+    return sendJson(res, 200, serializeExtensions(getExtensionHost(context)));
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/extensions/settings") {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension settings are not configured" });
+    const settings = await readPrcSettings(context.extensionRuntime.configDir);
+    return sendJson(res, 200, { ...settings, extensions: serializeExtensions(context.extensionRuntime.current) });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/extensions/reload") {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension reload is not configured" });
+    const result = await context.extensionRuntime.reload();
+    return sendJson(res, result.applied ? 200 : 400, { ...result, extensions: serializeExtensions(context.extensionRuntime.current) });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/extensions/packages") {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension package installs are not configured" });
+    const body = await readJson(req) as { source?: string };
+    if (!body.source) return sendJson(res, 400, { error: "source is required" });
+    const response = await mutateExtensionSettings(context.extensionRuntime, async () => installExtensionPackage(body.source!, { configDir: context.extensionRuntime!.configDir, cwd: context.extensionRuntime!.cwd }));
+    return sendJson(res, response.result.applied ? 200 : 400, { settings: response.settings, ...response.result, extensions: serializeExtensions(context.extensionRuntime.current) });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/extensions/packages/remove") {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension package removes are not configured" });
+    const body = await readJson(req) as { source?: string };
+    if (!body.source) return sendJson(res, 400, { error: "source is required" });
+    const response = await mutateExtensionSettings(context.extensionRuntime, async () => removeExtensionPackage(body.source!, { configDir: context.extensionRuntime!.configDir, cwd: context.extensionRuntime!.cwd }));
+    return sendJson(res, response.result.applied ? 200 : 400, { settings: response.settings, ...response.result, extensions: serializeExtensions(context.extensionRuntime.current) });
+  }
+
+  const extensionEnabledMatch = url.pathname.match(/^\/api\/extensions\/([^/]+)\/enabled$/);
+  if (req.method === "POST" && extensionEnabledMatch) {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension settings are not configured" });
+    const body = await readJson(req) as { enabled?: boolean };
+    if (typeof body.enabled !== "boolean") return sendJson(res, 400, { error: "enabled boolean is required" });
+    const extensionId = decodeURIComponent(extensionEnabledMatch[1]!);
+    const enabled = body.enabled;
+    const response = await mutateExtensionSettings(context.extensionRuntime, async () => setExtensionEnabled(context.extensionRuntime!.configDir, extensionId, enabled));
+    return sendJson(res, response.result.applied ? 200 : 400, { settings: response.settings, ...response.result, extensions: serializeExtensions(context.extensionRuntime.current) });
+  }
+
+  const extensionAssetMatch = url.pathname.match(/^\/api\/extensions\/([^/]+)\/assets\/([^/]+)$/);
+  if (req.method === "GET" && extensionAssetMatch) {
+    const asset = getExtensionHost(context)?.getWebAsset(decodeURIComponent(extensionAssetMatch[1]!));
+    if (!asset || path.basename(asset.filePath) !== decodeURIComponent(extensionAssetMatch[2]!)) return sendJson(res, 404, { error: "extension asset not found" });
+    return serveExtensionAsset(asset.filePath, res);
+  }
+
+  const extensionCommandMatch = url.pathname.match(/^\/api\/extensions\/([^/]+)\/commands\/([^/]+)$/);
+  if (req.method === "POST" && extensionCommandMatch) {
+    return handleExtensionCommand(req, res, context, decodeURIComponent(extensionCommandMatch[1]!), decodeURIComponent(extensionCommandMatch[2]!));
+  }
+
+  if (url.pathname.startsWith("/api/extensions/")) {
+    const extensionResponse = await getExtensionHost(context)?.serverRoutes.dispatch(req, url);
+    if (extensionResponse) return sendJsonWithHeaders(res, extensionResponse.status ?? 200, extensionResponse.body, extensionResponse.headers);
+    return sendJson(res, 404, { error: "extension route not found" });
+  }
+
+  const apiExtensionResponse = await getExtensionHost(context)?.serverRoutes.dispatch(req, url);
+  if (apiExtensionResponse) return sendJsonWithHeaders(res, apiExtensionResponse.status ?? 200, apiExtensionResponse.body, apiExtensionResponse.headers);
 
   if (url.pathname.startsWith("/api/cron")) {
     return handleCron(req, res, url, context);
@@ -874,14 +1007,33 @@ async function readJson(req: http.IncomingMessage): Promise<unknown> {
   return text ? JSON.parse(text) : {};
 }
 
+async function handleExtensionCommand(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  context: HttpApiServerContext,
+  extensionId: string,
+  invocationName: string,
+): Promise<void> {
+  const command = getExtensionHost(context)?.commands.get(invocationName);
+  if (!command || command.extensionId !== extensionId) return sendJson(res, 404, { error: "extension command not found" });
+  const input = await readJson(req);
+  const result = await command.run(input);
+  return sendJson(res, 200, { result });
+}
+
 function sendJson(res: http.ServerResponse, status: number, data: unknown): void {
+  return sendJsonWithHeaders(res, status, data);
+}
+
+function sendJsonWithHeaders(res: http.ServerResponse, status: number, data: unknown, headers: Record<string, string> = {}): void {
   setCors(res);
   res.statusCode = status;
+  for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
   if (status === 204) {
     res.end();
     return;
   }
-  res.setHeader("Content-Type", "application/json");
+  if (!res.hasHeader("Content-Type")) res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(data));
 }
 
@@ -987,6 +1139,22 @@ const STATIC_MIME: Record<string, string> = {
   ".map":  "application/json; charset=utf-8",
   ".txt":  "text/plain; charset=utf-8",
 };
+
+async function serveExtensionAsset(filePath: string, res: http.ServerResponse): Promise<void> {
+  const stat = await fsp.stat(filePath);
+  if (!stat.isFile()) return sendJson(res, 404, { error: "extension asset not found" });
+  const ext = path.extname(filePath).toLowerCase();
+  res.statusCode = 200;
+  res.setHeader("Content-Type", STATIC_MIME[ext] ?? "application/octet-stream");
+  res.setHeader("Content-Length", String(stat.size));
+  res.setHeader("Cache-Control", "no-cache");
+  await new Promise<void>((resolve, reject) => {
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("end", () => resolve());
+    stream.pipe(res);
+  });
+}
 
 async function tryServeStatic(rootDir: string, pathname: string, res: http.ServerResponse): Promise<boolean> {
   const absRoot = path.resolve(rootDir);
