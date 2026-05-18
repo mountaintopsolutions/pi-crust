@@ -13,12 +13,9 @@ import type { PromptAttachment, SessionListItem, SessionMessage } from "./pi/typ
 import { PathPolicy } from "./security/path-policy.js";
 import { resolveGitSha, createLiveGitSha } from "./git-sha.js";
 import { SessionRegistry } from "./session/session-registry.js";
-import { CronStore } from "./cron/cron-store.js";
-import { CronScheduler } from "./cron/cron-scheduler.js";
 import { WorkerRegistry } from "./session/worker-registry.js";
 import type { PrcExtensionHost } from "../extensions/registry.js";
 import { bootstrapPrcExtensions, defaultPrcConfigDir } from "../extensions/bootstrap.js";
-import { createScheduleServerExtension } from "./extensions/builtin/schedule-extension.js";
 
 export interface HttpApiServerOptions {
   readonly registry: SessionRegistry;
@@ -197,21 +194,17 @@ async function startDefaultServer(): Promise<void> {
       ? "pi-sdk"
       : "pirpc";
   const registry = createDefaultRegistry(adapterKind, sessionRoot, projectRoot);
-  const cronFile = path.resolve(process.env.PI_REMOTE_CRON_FILE ?? path.join(os.homedir(), ".pi", "agent", "cron-jobs.json"));
-  const cronStore = new CronStore(cronFile);
-  const cronScheduler = new CronScheduler({ store: cronStore, registry });
   const extensionBootstrap = await bootstrapPrcExtensions({
     configDir: defaultPrcConfigDir(process.env),
     cwd: projectRoot,
     env: process.env,
+    dataDir: path.resolve(process.env.PI_REMOTE_DATA_DIR ?? path.join(os.homedir(), ".pi-remote-control", "data")),
     bundledPackagePaths: [path.resolve(process.cwd(), "extensions", "schedule")],
-    builtIns: [createScheduleServerExtension({ store: cronStore, scheduler: cronScheduler })],
     sessions: createExtensionSessionApi(registry),
   });
   if (extensionBootstrap.diagnostics.length > 0) {
     for (const diagnostic of extensionBootstrap.diagnostics) console.warn(`[extensions] ${diagnostic.source}: ${diagnostic.message}`);
   }
-  void cronScheduler.start().catch((error) => console.error("[cron] failed to start scheduler", error));
   const clientEventLogPath = process.env.PI_REMOTE_CLIENT_EVENT_LOG
     ?? path.resolve(process.cwd(), "logs", "client-events.jsonl");
   // Live SHA: recomputed when .git/HEAD changes so /api/health doesn't lie
