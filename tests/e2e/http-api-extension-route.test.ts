@@ -5,6 +5,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PrcExtensionFactory } from "../../src/extensions/api.js";
 import { createPrcExtensionHost } from "../../src/extensions/registry.js";
+import { createPrcExtensionRuntime } from "../../src/extensions/runtime.js";
+import { writeLocalExtensionPackage } from "../helpers/local-extension-package.js";
 import { createHttpApiServer } from "../../src/server/http-api-server.js";
 import { MockPiAdapter } from "../../src/server/pi/mock-pi-adapter.js";
 import { PathPolicy } from "../../src/server/security/path-policy.js";
@@ -44,6 +46,27 @@ describe("HTTP API extension routes", () => {
     })).resolves.toEqual({ name: "alice", input: { value: 42 } });
     const missing = await fetch(`${baseUrl}/api/extensions/route-test/missing`);
     expect(missing.status).toBe(404);
+  });
+
+  it("hot reloads extensions through the HTTP API and keeps the previous host on failure", async () => {
+    const home = await createTempPrcHome();
+    homes.push(home);
+    const packageDir = await writeLocalExtensionPackage(home.root, {
+      name: "reload-http-extension",
+      extensionCode: "export default function activate(prc) { prc.commands.register({ id: 'reload.http', title: 'Reload', run: () => 'v1' }); }\n",
+    });
+    const runtime = await createPrcExtensionRuntime({ configDir: home.configDir, cwd: home.projectRoot, bundledPackagePaths: [packageDir] });
+    const baseUrl = await startServerWithRuntime(home, runtime);
+
+    await expect(fetchJson(`${baseUrl}/api/extensions/reload`, { method: "POST" })).resolves.toMatchObject({ applied: true });
+    await fs.writeFile(path.join(packageDir, "index.mjs"), "export default function activate(prc) { prc.commands.register({ id: 'reload.http', title: 'Reload', run: () => 'v2' }); }\n", "utf8");
+    await expect(fetchJson(`${baseUrl}/api/extensions/reload`, { method: "POST" })).resolves.toMatchObject({ applied: true, extensions: { commands: [expect.objectContaining({ id: "reload.http" })] } });
+    await expect(fetchJson(`${baseUrl}/api/extensions/reload-http-extension/commands/reload.http`, { method: "POST", body: "{}" })).resolves.toEqual({ result: "v2" });
+
+    await fs.writeFile(path.join(packageDir, "index.mjs"), "export const nope = true;\n", "utf8");
+    const failed = await fetch(`${baseUrl}/api/extensions/reload`, { method: "POST" });
+    expect(failed.status).toBe(400);
+    await expect(fetchJson(`${baseUrl}/api/extensions/reload-http-extension/commands/reload.http`, { method: "POST", body: "{}" })).resolves.toEqual({ result: "v2" });
   });
 
   it("serves extension web module assets and exposes them in metadata", async () => {
@@ -137,6 +160,23 @@ async function startExtensionServer(extensionId: string, factory: PrcExtensionFa
     sessionRoot: home.sessionRoot,
     defaultCwd: home.projectRoot,
     extensions,
+  });
+  servers.push(server);
+  return listen(server);
+}
+
+async function startServerWithRuntime(home: TempPrcHome, runtime: Awaited<ReturnType<typeof createPrcExtensionRuntime>>): Promise<string> {
+  const registry = new SessionRegistry({
+    adapter: new MockPiAdapter({ sessionRoot: home.sessionRoot }),
+    pathPolicy: new PathPolicy({ allowedProjectRoots: [home.projectRoot], allowedSessionRoots: [home.sessionRoot] }),
+  });
+  const server = createHttpApiServer({
+    registry,
+    adapterKind: "test",
+    projectRoot: home.projectRoot,
+    sessionRoot: home.sessionRoot,
+    defaultCwd: home.projectRoot,
+    extensionRuntime: runtime,
   });
   servers.push(server);
   return listen(server);
