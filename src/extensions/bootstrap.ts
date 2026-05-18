@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { PrcExtensionFactory } from "./api.js";
+import type { PrcExtensionFactory, PrcSessionsApi } from "./api.js";
 import { loadPrcExtensionFactory } from "./loader.js";
 import {
   readPrcSettings,
@@ -27,6 +27,7 @@ export interface BootstrapPrcExtensionsOptions {
   readonly explicitExtensionPaths?: readonly string[];
   readonly noExtensions?: boolean;
   readonly dataDir?: string;
+  readonly sessions?: PrcSessionsApi;
 }
 
 export interface BootstrapPrcExtensionsResult {
@@ -35,7 +36,10 @@ export interface BootstrapPrcExtensionsResult {
 }
 
 export async function bootstrapPrcExtensions(options: BootstrapPrcExtensionsOptions): Promise<BootstrapPrcExtensionsResult> {
-  const host = createPrcExtensionHost(options.dataDir === undefined ? {} : { dataDir: options.dataDir });
+  const host = createPrcExtensionHost({
+    ...(options.dataDir === undefined ? {} : { dataDir: options.dataDir }),
+    ...(options.sessions === undefined ? {} : { sessions: options.sessions }),
+  });
   const env = options.env ?? process.env;
   if (options.noExtensions || env.PI_REMOTE_NO_EXTENSIONS === "1") return { host, diagnostics: [] };
 

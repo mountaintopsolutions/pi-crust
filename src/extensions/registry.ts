@@ -226,7 +226,7 @@ export class PrcExtensionHost implements Disposable {
       activity: { registerView: (view) => track(this.activity.registerView(extensionId, view)) },
       storage: { dataFile: (relativePath) => path.join(this.options.dataDir ?? path.join(process.cwd(), ".pi-remote-control-data"), "extensions", extensionId, relativePath) },
       jobs: { register: (job) => track(createStartedJobDisposable(job)) },
-      sessions: this.options.sessions ?? { create: async () => { throw new Error("Extension session API is not configured"); } },
+      sessions: createExtensionSessionsApi(this.options.sessions),
       server: {
         routes: {
           get: (path, handler) => route("GET", path, handler),
@@ -247,6 +247,27 @@ export class PrcExtensionHost implements Disposable {
 
 export function createPrcExtensionHost(options: PrcExtensionHostOptions = {}): PrcExtensionHost {
   return new PrcExtensionHost(options);
+}
+
+function createExtensionSessionsApi(sessions: PrcSessionsApi | undefined): PrcSessionsApi {
+  if (!sessions) return { create: async () => { throw new Error("Extension session API is not configured"); } };
+  return {
+    ...sessions,
+    createAndPrompt: sessions.createAndPrompt ?? (async (input) => {
+      if (!sessions.prompt) throw new Error("Extension session prompt API is not configured");
+      const session = await sessions.create(input);
+      const sessionId = extractSessionId(session);
+      await sessions.prompt(sessionId, input.prompt);
+      return session;
+    }),
+  };
+}
+
+function extractSessionId(session: unknown): string {
+  if (typeof session === "object" && session !== null && "id" in session && typeof (session as { id?: unknown }).id === "string") {
+    return (session as { id: string }).id;
+  }
+  throw new Error("Extension session create result did not include an id");
 }
 
 function createStartedJobDisposable(job: PrcJobContribution): Disposable {

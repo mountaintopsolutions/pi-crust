@@ -168,21 +168,27 @@ describe("PRC extension registry harness", () => {
   it("provides storage, jobs, and session helper services to extensions", async () => {
     const calls: string[] = [];
     const created: unknown[] = [];
+    const prompts: Array<{ sessionId: string; prompt: string }> = [];
     const host = createPrcExtensionHost({
       dataDir: "/tmp/prc-data",
-      sessions: { create: async (input) => { created.push(input); return { id: "s1", ...input }; } },
+      sessions: {
+        create: async (input) => { created.push(input); return { id: `s${created.length}`, ...input }; },
+        prompt: async (sessionId, prompt) => { prompts.push({ sessionId, prompt }); },
+      },
     });
     await host.activate({
       id: "services",
       factory: async (prc) => {
         calls.push(prc.storage.dataFile("jobs.json"));
         calls.push(JSON.stringify(await prc.sessions.create({ cwd: "/repo", sessionName: "From extension" })));
+        calls.push(JSON.stringify(await prc.sessions.createAndPrompt?.({ cwd: "/repo", sessionName: "Scheduled", prompt: "run now" })));
         prc.jobs.register({ id: "services.job", start: () => { calls.push("start"); }, stop: () => { calls.push("stop"); } });
       },
     });
 
     expect(calls).toContain("/tmp/prc-data/extensions/services/jobs.json");
-    expect(created).toEqual([{ cwd: "/repo", sessionName: "From extension" }]);
+    expect(created).toEqual([{ cwd: "/repo", sessionName: "From extension" }, { cwd: "/repo", sessionName: "Scheduled", prompt: "run now" }]);
+    expect(prompts).toEqual([{ sessionId: "s2", prompt: "run now" }]);
     expect(calls).toContain("start");
     await host.dispose();
     expect(calls).toContain("stop");
