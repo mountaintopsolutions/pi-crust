@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ExtensionUiRequest, ExtensionUiResponse, WireMessage } from "../../shared/protocol.js";
-import type { DashboardArtifact, DashboardMessage, DashboardToolDetails, ExtensionRegistryInfo, ForkMessageOption, SessionCardData, SessionDashboardApi } from "../api/session-api.js";
+import type { DashboardArtifact, DashboardMessage, DashboardToolDetails, ExtensionRegistryInfo, ExtensionSettingsResponse, ForkMessageOption, SessionCardData, SessionDashboardApi } from "../api/session-api.js";
 import { MAX_PROMPT_CHARS } from "../../shared/limits.js";
 import { MessageTimeline, type TimelineMessage } from "./MessageTimeline.js";
 import { ModelPicker } from "./ModelPicker.js";
@@ -13,7 +13,7 @@ import { ExternalWebActivity } from "../extensions/external-web-module.js";
 import type { WebActivityContribution } from "../extensions/types.js";
 import "./session-dashboard.css";
 
-type DashboardView = "sessions" | `activity:${string}`;
+type DashboardView = "sessions" | "settings" | `activity:${string}`;
 
 export interface SessionDashboardProps {
   readonly api: SessionDashboardApi;
@@ -61,6 +61,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   const [followUpBySession, setFollowUpBySession] = useState<Record<string, string[]>>({});
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [extensions, setExtensions] = useState<ExtensionRegistryInfo>({ commands: [], activities: [], routes: [], diagnostics: [] });
+  const [extensionSettings, setExtensionSettings] = useState<ExtensionSettingsResponse | null>(null);
 
   const [notice, setNotice] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => {
@@ -89,11 +90,19 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     setExtensions(extensionInfo);
   }, [api]);
 
+  const refreshExtensionSettings = useCallback(async () => {
+    if (!api.getExtensionSettings) return;
+    const settings = await api.getExtensionSettings();
+    setExtensionSettings(settings);
+    setExtensions(settings.extensions);
+  }, [api]);
+
   const reloadExtensions = useCallback(async () => {
     try {
       if (api.reloadExtensions) {
         const result = await api.reloadExtensions();
         setExtensions(result.extensions);
+        if (api.getExtensionSettings) void refreshExtensionSettings();
         setNotice(result.applied ? "Extensions reloaded." : "Extension reload failed; previous extensions are still active.");
       } else {
         await refreshExtensions();
@@ -102,7 +111,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     } catch (caught) {
       setError(errorMessage(caught));
     }
-  }, [api, refreshExtensions]);
+  }, [api, refreshExtensions, refreshExtensionSettings]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -136,6 +145,13 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         if (api.getExtensions) {
           try {
             await refreshExtensions();
+          } catch {
+            // Optional capability; ignore older API servers.
+          }
+        }
+        if (api.getExtensionSettings) {
+          try {
+            await refreshExtensionSettings();
           } catch {
             // Optional capability; ignore older API servers.
           }
@@ -180,7 +196,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [api, refreshExtensions]);
+  }, [api, refreshExtensions, refreshExtensionSettings]);
 
   useEffect(() => {
     if (!api.listSessionStatuses || !defaultCwd) return;
@@ -787,6 +803,17 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
               </span>
             ) : "New session"}
           </button>
+          {api.getExtensionSettings || api.setExtensionEnabled || api.installExtensionPackage ? (
+            <button
+              type="button"
+              className={`sidebar-menu-item ${view === "settings" ? "active" : ""}`}
+              aria-pressed={view === "settings"}
+              onClick={() => setView(view === "settings" ? "sessions" : "settings")}
+            >
+              <ExtensionGlyph />
+              Settings
+            </button>
+          ) : null}
           {api.reloadExtensions || api.getExtensions ? (
             <button
               type="button"
@@ -876,8 +903,29 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         </ul>
       </aside>
 
-      <section className="active-session" aria-label={activeActivity ? activeActivity.title : "Active session"}>
-        {activeActivity ? (
+      <section className="active-session" aria-label={view === "settings" ? "Extension settings" : activeActivity ? activeActivity.title : "Active session"}>
+        {view === "settings" ? (
+          <ExtensionSettingsPanel
+            extensions={extensions}
+            settings={extensionSettings}
+            onReload={reloadExtensions}
+            {...(api.setExtensionEnabled ? { onToggle: async (extensionId: string, enabled: boolean) => {
+              const result = await api.setExtensionEnabled!(extensionId, enabled);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+            {...(api.installExtensionPackage ? { onInstall: async (source: string) => {
+              const result = await api.installExtensionPackage!(source);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+            {...(api.removeExtensionPackage ? { onRemove: async (source: string) => {
+              const result = await api.removeExtensionPackage!(source);
+              setExtensions(result.extensions);
+              if (api.getExtensionSettings) await refreshExtensionSettings();
+            } } : {})}
+          />
+        ) : activeActivity ? (
           activeActivity.render()
         ) : activeSession ? (
           <>
@@ -1584,6 +1632,82 @@ function saveUserActivityMap(map: Record<string, number>): void {
   } catch {
     // Quota / private-mode failures are not worth surfacing.
   }
+}
+
+function ExtensionSettingsPanel(props: {
+  readonly extensions: ExtensionRegistryInfo;
+  readonly settings: ExtensionSettingsResponse | null;
+  readonly onReload: () => Promise<void>;
+  readonly onToggle?: (extensionId: string, enabled: boolean) => Promise<void>;
+  readonly onInstall?: (source: string) => Promise<void>;
+  readonly onRemove?: (source: string) => Promise<void>;
+}) {
+  const [source, setSource] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const disabled = new Set(props.settings?.disabledExtensions ?? []);
+  const extensionIds = extensionIdsForSettings(props.extensions, disabled);
+  const packageSources = [...(props.settings?.packages ?? [])].map((entry) => typeof entry === "string" ? entry : JSON.stringify(entry));
+  const run = async (label: string, action: () => Promise<void>) => {
+    setBusy(label);
+    try { await action(); }
+    finally { setBusy(null); }
+  };
+  return (
+    <div className="extension-settings-panel">
+      <header>
+        <div className="active-title">
+          <h2>Extension settings</h2>
+          <span className="active-subtitle">Manage packages, enablement, and reloads.</span>
+        </div>
+        <button type="button" onClick={() => void run("reload", props.onReload)} disabled={busy !== null}>{busy === "reload" ? "Reloading…" : "Reload"}</button>
+      </header>
+      <div className="extension-activity-body">
+        <section aria-label="Installed extensions">
+          <h3>Extensions</h3>
+          {extensionIds.length === 0 ? <p>No extensions are configured.</p> : null}
+          {extensionIds.map((extensionId) => {
+            const title = props.extensions.activities.find((activity) => activity.extensionId === extensionId)?.title ?? extensionId;
+            const diagnostics = props.extensions.diagnostics.filter((diagnostic) => diagnostic.extensionId === extensionId);
+            return (
+              <label key={extensionId} className="popover-row checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={!disabled.has(extensionId)}
+                  disabled={!props.onToggle || busy !== null}
+                  onChange={(event) => void run(`toggle:${extensionId}`, () => props.onToggle!(extensionId, event.target.checked))}
+                />
+                <span>{title} <code>{extensionId}</code></span>
+                {diagnostics.length > 0 ? <span role="alert"> {diagnostics.map((diagnostic) => diagnostic.message).join("; ")}</span> : null}
+              </label>
+            );
+          })}
+        </section>
+        <section aria-label="Extension packages">
+          <h3>Packages</h3>
+          {props.onInstall ? (
+            <div className="popover-row">
+              <input aria-label="Extension package source" placeholder="npm:pkg, git:url, or local path" value={source} onChange={(event) => setSource(event.target.value)} />
+              <button type="button" disabled={!source.trim() || busy !== null} onClick={() => void run("install", async () => { await props.onInstall!(source.trim()); setSource(""); })}>Install</button>
+            </div>
+          ) : null}
+          {packageSources.length === 0 ? <p>No packages installed.</p> : null}
+          {packageSources.map((pkg) => (
+            <p key={pkg}><code>{pkg}</code> {props.onRemove ? <button type="button" disabled={busy !== null} onClick={() => void run(`remove:${pkg}`, () => props.onRemove!(pkg))}>Remove</button> : null}</p>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function extensionIdsForSettings(extensions: ExtensionRegistryInfo, disabled: ReadonlySet<string>): string[] {
+  return [...new Set([
+    ...extensions.activities.map((activity) => activity.extensionId),
+    ...extensions.commands.map((command) => command.extensionId),
+    ...extensions.routes.map((route) => route.extensionId),
+    ...extensions.diagnostics.map((diagnostic) => diagnostic.extensionId),
+    ...disabled,
+  ])].sort();
 }
 
 function ExtensionActivityPanel({ activity, extensions }: { readonly activity: import("../api/session-api.js").ExtensionActivityInfo; readonly extensions: ExtensionRegistryInfo }) {
