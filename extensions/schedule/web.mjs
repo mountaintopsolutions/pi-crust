@@ -10,14 +10,15 @@ export function renderActivity(props) {
     const [busyJob, setBusyJob] = useState(null);
 
     const sortedJobs = useMemo(() => [...state.jobs].sort((a, b) => (a.nextRun ?? Number.MAX_SAFE_INTEGER) - (b.nextRun ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name)), [state.jobs]);
+    const scheduleApi = createScheduleApi(props.api);
 
     const refresh = () => {
-      if (!props.api.cron) {
+      if (!scheduleApi) {
         setState((current) => ({ ...current, loading: false, error: 'Schedule API is not available.' }));
         return Promise.resolve();
       }
       setState((current) => ({ ...current, loading: true, error: null }));
-      return props.api.cron.list()
+      return scheduleApi.list()
         .then((result) => setState((current) => ({ ...current, loading: false, error: null, jobs: result.jobs, filePath: result.filePath })))
         .catch((error) => setState((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : String(error) })));
     };
@@ -41,7 +42,7 @@ export function renderActivity(props) {
 
     const submit = (event) => {
       event.preventDefault();
-      if (!props.api.cron) return;
+      if (!scheduleApi) return;
       const input = {
         name: draft.name.trim(),
         schedule: draft.schedule.trim(),
@@ -49,7 +50,7 @@ export function renderActivity(props) {
         cwd: draft.cwd.trim() || state.defaultCwd,
         enabled: true,
       };
-      const op = editing ? props.api.cron.update(editing, input) : props.api.cron.create(input);
+      const op = editing ? scheduleApi.update(editing, input) : scheduleApi.create(input);
       setState((current) => ({ ...current, loading: true, error: null }));
       op.then(() => { resetDraft(); return refresh(); })
         .catch((error) => setState((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : String(error) })));
@@ -61,17 +62,17 @@ export function renderActivity(props) {
     };
 
     const updateJob = (job, patch) => {
-      if (!props.api.cron) return;
+      if (!scheduleApi) return;
       setBusyJob(job.id);
-      props.api.cron.update(job.id, patch).then(refresh)
+      scheduleApi.update(job.id, patch).then(refresh)
         .catch((error) => setState((current) => ({ ...current, error: error instanceof Error ? error.message : String(error) })))
         .finally(() => setBusyJob(null));
     };
 
     const runJob = (job) => {
-      if (!props.api.cron) return;
+      if (!scheduleApi) return;
       setBusyJob(job.id);
-      props.api.cron.runNow(job.id)
+      scheduleApi.runNow(job.id)
         .then((result) => {
           if (result.sessionId && props.api.getSession) {
             // The host dashboard will eventually expose navigation directly to
@@ -85,9 +86,9 @@ export function renderActivity(props) {
     };
 
     const deleteJob = (job) => {
-      if (!props.api.cron) return;
+      if (!scheduleApi) return;
       setBusyJob(job.id);
-      props.api.cron.delete(job.id).then(refresh)
+      scheduleApi.delete(job.id).then(refresh)
         .catch((error) => setState((current) => ({ ...current, error: error instanceof Error ? error.message : String(error) })))
         .finally(() => setBusyJob(null));
     };
@@ -134,6 +135,18 @@ export function renderActivity(props) {
   }
 
   return React.createElement(SchedulePanel);
+}
+
+function createScheduleApi(hostApi) {
+  if (hostApi.cron) return hostApi.cron;
+  if (!hostApi.request) return null;
+  return {
+    list: () => hostApi.request('/api/cron'),
+    create: (input) => hostApi.request('/api/cron', { method: 'POST', body: input }),
+    update: (id, patch) => hostApi.request(`/api/cron/${encodeURIComponent(id)}`, { method: 'POST', body: patch }),
+    delete: async (id) => { await hostApi.request(`/api/cron/${encodeURIComponent(id)}/delete`, { method: 'POST', body: {} }); },
+    runNow: (id) => hostApi.request(`/api/cron/${encodeURIComponent(id)}/run`, { method: 'POST', body: {} }),
+  };
 }
 
 function formatTime(value) {

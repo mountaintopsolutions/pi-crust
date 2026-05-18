@@ -8,7 +8,6 @@ import { ModelPicker } from "./ModelPicker.js";
 import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
 import { ShortcutHelp } from "./ShortcutHelp.js";
 import { ExtensionUiHost } from "./ExtensionUiHost.js";
-import { createScheduleActivity } from "../extensions/builtin/schedule-extension.js";
 import { ExternalWebActivity } from "../extensions/external-web-module.js";
 import type { WebActivityContribution } from "../extensions/types.js";
 import "./session-dashboard.css";
@@ -355,39 +354,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   }, [namedOnly, query, sessions, sortMode, lastUserActivityById]);
 
   const activeSession = activeSessionId ? sessions.find((session) => session.id === activeSessionId) : null;
-  const openScheduleSession = useCallback((sessionId: string) => {
-    setView("sessions");
-    setActiveSessionId(sessionId);
-    void (async () => {
-      try {
-        const refreshed = await api.listSessions(defaultCwd);
-        // Scheduled jobs commonly run with a cwd outside the dashboard's
-        // current list filter. Fetch the spawned session explicitly so the
-        // active-session pane has data to render.
-        let merged: readonly SessionCardData[] = refreshed;
-        if (!refreshed.some((session) => session.id === sessionId) && api.getSession) {
-          try {
-            const spawned = await api.getSession(sessionId);
-            merged = [spawned, ...refreshed];
-          } catch {
-            // Keep the active id even if explicit hydration fails; the URL can
-            // still recover when the session becomes listable.
-          }
-        }
-        setSessions(merged);
-      } catch (caught) {
-        setError(errorMessage(caught));
-      }
-    })();
-  }, [api, defaultCwd]);
-  const builtInActivities = useMemo<WebActivityContribution[]>(
-    () => api.cron && !extensions.activities.some((activity) => activity.id === "core.schedule.activity")
-      ? [createScheduleActivity({ api: api.cron, defaultCwd, onOpenSession: openScheduleSession })]
-      : [],
-    [api.cron, defaultCwd, openScheduleSession, extensions.activities],
-  );
   const webActivities = useMemo<WebActivityContribution[]>(() => [
-    ...builtInActivities,
     ...extensions.activities.map((activity): WebActivityContribution => ({
       id: activity.id,
       title: activity.title,
@@ -397,7 +364,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         ? <ExternalWebActivity activity={activity} extensions={extensions} api={api} />
         : <ExtensionActivityPanel activity={activity} extensions={extensions} />,
     })),
-  ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title)), [builtInActivities, extensions]);
+  ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title)), [api, extensions]);
   const extensionSlashCommands = useMemo(
     () => extensions.commands.map((command) => command.slashName).filter((slashName): slashName is string => Boolean(slashName)),
     [extensions.commands],

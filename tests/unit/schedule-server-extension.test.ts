@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { bootstrapPrcExtensions } from "../../src/extensions/bootstrap.js";
+import { writePrcSettings } from "../../src/extensions/packages.js";
 
 const roots: string[] = [];
 
@@ -11,6 +12,23 @@ afterEach(async () => {
 });
 
 describe("bundled core.schedule server extension", () => {
+  it("does not register schedule routes when core.schedule is disabled", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "prc-schedule-disabled-"));
+    roots.push(root);
+    const configDir = path.join(root, "config");
+    await writePrcSettings(configDir, { disabledExtensions: ["core.schedule"] });
+
+    const result = await bootstrapPrcExtensions({
+      configDir,
+      cwd: root,
+      dataDir: path.join(root, "data"),
+      bundledPackagePaths: [path.resolve(process.cwd(), "extensions", "schedule")],
+    });
+
+    expect(result.host.activity.list()).toEqual([]);
+    expect(await result.host.serverRoutes.dispatch(ReadableRequest.empty("GET") as never, new URL("http://localhost/api/cron"))).toBeUndefined();
+  });
+
   it("registers /api/cron compatibility routes through the package extension host", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "prc-schedule-extension-"));
     roots.push(root);
