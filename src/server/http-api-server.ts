@@ -169,6 +169,12 @@ export function createHttpApiServer(options: HttpApiServerOptions): http.Server 
   });
 }
 
+function isWithinPath(candidate: string, root: string): boolean {
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedRoot = path.resolve(root);
+  return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(`${resolvedRoot}${path.sep}`);
+}
+
 function createDefaultRegistry(adapterKind: string, sessionRoot: string, projectRoot: string): SessionRegistry {
   const workerRegistry = new WorkerRegistry();
   return new SessionRegistry({
@@ -193,6 +199,7 @@ async function startDefaultServer(): Promise<void> {
       ? "pi-sdk"
       : "pirpc";
   const registry = createDefaultRegistry(adapterKind, sessionRoot, projectRoot);
+  const serverDefaultCwd = isWithinPath(process.cwd(), projectRoot) ? process.cwd() : projectRoot;
   const extensionRuntime = await createPrcExtensionRuntime({
     configDir: defaultPrcConfigDir(process.env),
     cwd: projectRoot,
@@ -216,7 +223,7 @@ async function startDefaultServer(): Promise<void> {
     adapterKind,
     projectRoot,
     sessionRoot,
-    defaultCwd: process.cwd(),
+    defaultCwd: serverDefaultCwd,
     cronStore,
     cronScheduler,
     clientEventLogPath,
