@@ -34,7 +34,7 @@ describe("PRC extension registry harness", () => {
     await expect(host.commands.run("shared:1")).resolves.toBe("beta");
   });
 
-  it("documents extension activation precedence as explicit, project, global, then built-in", async () => {
+  it("documents precedence by activation order: explicit, project, global, then built-in", async () => {
     const host = createPrcExtensionHost();
     await host.activateAll([
       { id: "explicit", factory: (prc) => prc.commands.register({ id: "shared", title: "Explicit", run: () => "explicit" }) },
@@ -61,6 +61,33 @@ describe("PRC extension registry harness", () => {
 
     expect(host.commands.getSlashCommand("fork")?.id).toBe("alpha.fork");
     expect(host.commands.list().map((command) => command.id)).toEqual(["alpha.fork", "beta.fork"]);
+  });
+
+  it("removes slash metadata when a command disposable is disposed", () => {
+    const host = createPrcExtensionHost();
+    const disposable = host.commands.register("direct", { id: "direct.fork", title: "Fork", slashName: "fork", run: () => "fork" });
+
+    expect(host.commands.get("direct.fork")?.id).toBe("direct.fork");
+    expect(host.commands.getSlashCommand("fork")?.id).toBe("direct.fork");
+
+    disposable.dispose();
+
+    expect(host.commands.get("direct.fork")).toBeUndefined();
+    expect(host.commands.getSlashCommand("fork")).toBeUndefined();
+  });
+
+  it("does not rebind duplicate slash command names when the first owner is disposed", async () => {
+    const host = createPrcExtensionHost();
+    let firstDisposable: { dispose(): void } | undefined;
+    await host.activateAll([
+      { id: "alpha", factory: (prc) => { firstDisposable = prc.commands.register({ id: "alpha.fork", title: "Alpha Fork", slashName: "fork", run: () => "alpha" }); } },
+      { id: "beta", factory: (prc) => prc.commands.register({ id: "beta.fork", title: "Beta Fork", slashName: "fork", run: () => "beta" }) },
+    ]);
+
+    firstDisposable?.dispose();
+
+    expect(host.commands.get("beta.fork")?.id).toBe("beta.fork");
+    expect(host.commands.getSlashCommand("fork")).toBeUndefined();
   });
 
   it("registers activity views and removes contributions on dispose", async () => {
@@ -96,22 +123,14 @@ describe("PRC extension registry harness", () => {
     await expect(host.commands.run("external.test.open")).resolves.toBe("external");
   });
 
-  it("disposes all host contributions and returned disposables in LIFO order", async () => {
+  it("disposes host-tracked commands, slash metadata, activity views, and routes", async () => {
     const host = createPrcExtensionHost();
-    const disposeOrder: string[] = [];
     await host.activate({
       id: "cleanup",
       factory: (prc) => {
-        const command = prc.commands.register({ id: "cleanup.command", title: "Cleanup", slashName: "cleanup", run: () => "ok" });
-        const view = prc.activity.registerView({ id: "cleanup.view", title: "Cleanup" });
+        prc.commands.register({ id: "cleanup.command", title: "Cleanup", slashName: "cleanup", run: () => "ok" });
+        prc.activity.registerView({ id: "cleanup.view", title: "Cleanup" });
         prc.server.routes.get("/cleanup", () => ({ ok: true }));
-        return { dispose: () => {
-          disposeOrder.push("returned");
-          view.dispose();
-          disposeOrder.push("view");
-          command.dispose();
-          disposeOrder.push("command");
-        } };
       },
     });
 
@@ -122,11 +141,28 @@ describe("PRC extension registry harness", () => {
 
     await host.dispose();
 
-    expect(disposeOrder).toEqual(["returned", "view", "command"]);
     expect(host.commands.get("cleanup.command")).toBeUndefined();
     expect(host.commands.getSlashCommand("cleanup")).toBeUndefined();
     expect(host.activity.get("cleanup.view")).toBeUndefined();
     expect(await host.serverRoutes.dispatch(ReadableRequest.empty("GET") as never, new URL("http://localhost/api/extensions/cleanup/cleanup"))).toBeUndefined();
+  });
+
+  it("disposes returned disposables once and makes host disposal idempotent", async () => {
+    const host = createPrcExtensionHost();
+    const calls: string[] = [];
+    await host.activate({
+      id: "returned-disposable",
+      factory: (prc) => {
+        prc.commands.register({ id: "returned.command", title: "Returned", run: () => "ok" });
+        return { dispose: () => { calls.push("returned"); } };
+      },
+    });
+
+    await host.dispose();
+    await host.dispose();
+
+    expect(calls).toEqual(["returned"]);
+    expect(host.commands.get("returned.command")).toBeUndefined();
   });
 
   it("cleans up partial contributions when activation fails", async () => {

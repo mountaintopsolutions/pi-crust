@@ -21,10 +21,18 @@ afterEach(async () => {
 describe("HTTP API extension routes", () => {
   it("serves routes contributed by an activated server extension", async () => {
     const baseUrl = await startExtensionServer("route-test", (prc) => {
+      prc.commands.register({ id: "route-test.command", title: "Route Test", slashName: "route-test", run: () => "ok" });
+      prc.activity.registerView({ id: "route-test.view", title: "Route Test" });
       prc.server.routes.get("/ping", () => ({ ok: true, source: prc.extensionId }));
       prc.server.routes.post("/echo/:name", async (request) => ({ body: { name: request.params.name, input: await request.json() } }));
     });
 
+    await expect(fetchJson(`${baseUrl}/api/extensions`)).resolves.toMatchObject({
+      commands: [{ id: "route-test.command", invocationName: "route-test.command", title: "Route Test", slashName: "route-test", extensionId: "route-test" }],
+      activities: [{ id: "route-test.view", title: "Route Test", extensionId: "route-test" }],
+      routes: expect.arrayContaining([{ method: "GET", path: "/ping", extensionId: "route-test" }]),
+      diagnostics: [],
+    });
     await expect(fetchJson(`${baseUrl}/api/extensions/route-test/ping`)).resolves.toEqual({ ok: true, source: "route-test" });
     await expect(fetchJson(`${baseUrl}/api/extensions/route-test/echo/alice`, {
       method: "POST",

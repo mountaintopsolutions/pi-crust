@@ -1,0 +1,113 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { bootstrapPrcExtensions, defaultPrcConfigDir } from "../../src/extensions/bootstrap.js";
+import { installExtensionPackage, writePrcSettings } from "../../src/extensions/packages.js";
+import { createTempPrcHome, type TempPrcHome } from "../helpers/temp-prc-home.js";
+import { writeLocalExtensionPackage } from "../helpers/local-extension-package.js";
+
+let homes: TempPrcHome[] = [];
+
+afterEach(async () => {
+  await Promise.all(homes.splice(0).map((home) => home.cleanup()));
+});
+
+describe("PRC extension bootstrap integration", () => {
+  it("loads explicit, project, global, and built-in extensions in precedence order", async () => {
+    const home = await makeHome();
+    const explicitFile = path.join(home.root, "explicit.mjs");
+    await fs.writeFile(explicitFile, commandModule("explicit"), "utf8");
+    const projectPackage = await writePackage(home.projectRoot, "project-extension", "project");
+    const globalPackage = await writePackage(home.configDir, "global-extension", "global");
+    await installExtensionPackage(globalPackage, { configDir: home.configDir });
+    await writePrcSettings(home.configDir, {
+      packages: ["global-extension"],
+      projectPackages: [projectPackage],
+    });
+
+    const result = await bootstrapPrcExtensions({
+      configDir: home.configDir,
+      cwd: home.projectRoot,
+      explicitExtensionPaths: [explicitFile],
+      builtIns: [{ id: "builtin-extension", factory: (prc) => prc.commands.register({ id: "shared", title: "Built-in", run: () => "builtin" }) }],
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.host.commands.list().map((command) => `${command.invocationName}:${command.extensionId}`)).toEqual([
+      "shared:explicit:explicit",
+      "shared:1:project-extension",
+      "shared:2:global-extension",
+      "shared:3:builtin-extension",
+    ]);
+    await expect(result.host.commands.run("shared")).resolves.toBe("explicit");
+  });
+
+  it("honors PI_REMOTE_EXTENSIONS and PI_REMOTE_NO_EXTENSIONS", async () => {
+    const home = await makeHome();
+    const envFile = path.join(home.root, "env-extension.mjs");
+    await fs.writeFile(envFile, commandModule("env"), "utf8");
+
+    const enabled = await bootstrapPrcExtensions({
+      configDir: home.configDir,
+      cwd: home.projectRoot,
+      env: { ...process.env, PI_REMOTE_EXTENSIONS: envFile },
+    });
+    const disabled = await bootstrapPrcExtensions({
+      configDir: home.configDir,
+      cwd: home.projectRoot,
+      env: { ...process.env, PI_REMOTE_EXTENSIONS: envFile, PI_REMOTE_NO_EXTENSIONS: "1" },
+    });
+
+    await expect(enabled.host.commands.run("shared")).resolves.toBe("env");
+    expect(disabled.host.commands.list()).toEqual([]);
+  });
+
+  it("reports diagnostics for invalid configured package extension modules without aborting bootstrap", async () => {
+    const home = await makeHome();
+    const badPackage = await writeLocalExtensionPackage(home.configDir, {
+      name: "bad-extension",
+      extensionCode: "export const nope = true;\n",
+    });
+    await writePrcSettings(home.configDir, { packages: [path.relative(home.configDir, badPackage)] });
+
+    const result = await bootstrapPrcExtensions({ configDir: home.configDir, cwd: home.projectRoot });
+
+    expect(result.host.commands.list()).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.source).toBe(path.join(badPackage, "index.mjs"));
+    expect(result.diagnostics[0]?.message).toContain("does not export an activate function");
+  });
+
+  it("reports diagnostics for missing explicit extension paths", async () => {
+    const home = await makeHome();
+    const missing = path.join(home.root, "missing.mjs");
+
+    const result = await bootstrapPrcExtensions({ configDir: home.configDir, cwd: home.projectRoot, explicitExtensionPaths: [missing] });
+
+    expect(result.host.commands.list()).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.source).toBe(missing);
+  });
+
+  it("uses PI_REMOTE_CONFIG_DIR before the default home config dir", () => {
+    expect(defaultPrcConfigDir({ HOME: "/home/test", PI_REMOTE_CONFIG_DIR: "/tmp/prc" })).toBe("/tmp/prc");
+    expect(defaultPrcConfigDir({ HOME: "/home/test" })).toBe("/home/test/.pi-remote-control");
+  });
+});
+
+async function writePackage(root: string, name: string, value: string): Promise<string> {
+  return writeLocalExtensionPackage(root, {
+    name,
+    extensionCode: commandModule(value),
+  });
+}
+
+function commandModule(value: string): string {
+  return `export default function activate(prc) { prc.commands.register({ id: 'shared', title: '${value}', run: () => '${value}' }); }\n`;
+}
+
+async function makeHome(): Promise<TempPrcHome> {
+  const home = await createTempPrcHome();
+  homes.push(home);
+  return home;
+}

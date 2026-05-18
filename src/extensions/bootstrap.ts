@@ -1,0 +1,106 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import type { PrcExtensionFactory } from "./api.js";
+import { loadPrcExtensionFactory } from "./loader.js";
+import {
+  readPrcSettings,
+  resolvePackageExtensions,
+  resolveSinglePackageExtensions,
+  type PackageDiagnostic,
+  type ResolvedExtensionEntry,
+} from "./packages.js";
+import { createPrcExtensionHost, type ActivateExtensionInput, type PrcExtensionHost } from "./registry.js";
+
+export interface BuiltInPrcExtension {
+  readonly id: string;
+  readonly factory: PrcExtensionFactory;
+}
+
+export interface BootstrapPrcExtensionsOptions {
+  readonly configDir: string;
+  readonly cwd: string;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly builtIns?: readonly BuiltInPrcExtension[];
+  readonly explicitExtensionPaths?: readonly string[];
+  readonly noExtensions?: boolean;
+}
+
+export interface BootstrapPrcExtensionsResult {
+  readonly host: PrcExtensionHost;
+  readonly diagnostics: readonly PackageDiagnostic[];
+}
+
+export async function bootstrapPrcExtensions(options: BootstrapPrcExtensionsOptions): Promise<BootstrapPrcExtensionsResult> {
+  const host = createPrcExtensionHost();
+  const env = options.env ?? process.env;
+  if (options.noExtensions || env.PI_REMOTE_NO_EXTENSIONS === "1") return { host, diagnostics: [] };
+
+  const packageDiagnostics: PackageDiagnostic[] = [];
+  const explicitPaths = [...(options.explicitExtensionPaths ?? []), ...parseExtensionEnv(env.PI_REMOTE_EXTENSIONS)];
+  const explicitInputs = await loadExplicitExtensionInputs(explicitPaths, options.cwd, packageDiagnostics);
+
+  const settings = await readPrcSettings(options.configDir);
+  const project = await resolvePackageExtensions(settings.projectPackages ? { projectPackages: settings.projectPackages } : {}, { cwd: options.cwd });
+  const global = await resolvePackageExtensions(settings.packages ? { packages: settings.packages } : {}, { cwd: options.configDir });
+  packageDiagnostics.push(...project.diagnostics, ...global.diagnostics);
+
+  const projectInputs = await loadEntriesAsInputs(project.extensions, packageDiagnostics);
+  const globalInputs = await loadEntriesAsInputs(global.extensions, packageDiagnostics);
+  const builtInInputs = (options.builtIns ?? []).map((extension): ActivateExtensionInput => ({ id: extension.id, factory: extension.factory }));
+
+  await host.activateAll([...explicitInputs, ...projectInputs, ...globalInputs, ...builtInInputs]);
+  for (const diagnostic of packageDiagnostics) {
+    host.diagnostics.push({ extensionId: diagnostic.source, level: diagnostic.level, message: diagnostic.message });
+  }
+  return { host, diagnostics: packageDiagnostics };
+}
+
+export function defaultPrcConfigDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.resolve(env.PI_REMOTE_CONFIG_DIR ?? path.join(env.HOME ?? process.cwd(), ".pi-remote-control"));
+}
+
+function parseExtensionEnv(value: string | undefined): string[] {
+  return value?.split(",").map((entry) => entry.trim()).filter(Boolean) ?? [];
+}
+
+async function loadExplicitExtensionInputs(paths: readonly string[], cwd: string, diagnostics: PackageDiagnostic[]): Promise<ActivateExtensionInput[]> {
+  const entries: ResolvedExtensionEntry[] = [];
+  for (const extensionPath of paths) {
+    const absolute = path.resolve(cwd, extensionPath);
+    try {
+      const resolvedPaths = await resolveSinglePackageExtensions(absolute);
+      for (const resolvedPath of resolvedPaths) entries.push({ packageSource: absolute, path: resolvedPath, scope: "explicit" });
+    } catch (error) {
+      diagnostics.push({ source: absolute, level: "error", message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return loadEntriesAsInputs(entries, diagnostics, inferExplicitExtensionId);
+}
+
+async function loadEntriesAsInputs(
+  entries: readonly ResolvedExtensionEntry[],
+  diagnostics: PackageDiagnostic[],
+  inferId: (filePath: string, entry: ResolvedExtensionEntry) => string | Promise<string> = defaultExtensionId,
+): Promise<ActivateExtensionInput[]> {
+  const inputs: ActivateExtensionInput[] = [];
+  for (const entry of entries) {
+    try {
+      inputs.push({ id: await inferId(entry.path, entry), factory: await loadPrcExtensionFactory(entry.path) });
+    } catch (error) {
+      diagnostics.push({ source: entry.path, level: "error", message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return inputs;
+}
+
+async function defaultExtensionId(_filePath: string, entry: ResolvedExtensionEntry): Promise<string> {
+  try {
+    const manifest = JSON.parse(await fs.readFile(path.join(entry.packageSource, "package.json"), "utf8")) as { name?: unknown };
+    if (typeof manifest.name === "string" && manifest.name.trim()) return manifest.name;
+  } catch { /* fall back */ }
+  return path.basename(entry.packageSource) || inferExplicitExtensionId(entry.path);
+}
+
+function inferExplicitExtensionId(filePath: string): string {
+  return `explicit:${path.basename(filePath, path.extname(filePath))}`;
+}
