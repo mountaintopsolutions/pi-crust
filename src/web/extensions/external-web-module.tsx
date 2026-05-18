@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ExtensionActivityInfo, ExtensionRegistryInfo, SessionDashboardApi } from "../api/session-api.js";
 
@@ -5,6 +6,8 @@ export interface ExternalWebActivityProps {
   readonly activity: ExtensionActivityInfo;
   readonly extensions: ExtensionRegistryInfo;
   readonly api: SessionDashboardApi;
+  /** React is supplied by the host so external modules can be plain ESM without bundling React. */
+  readonly React?: typeof React;
 }
 
 export type ExternalWebActivityComponent = (props: ExternalWebActivityProps) => ReactNode;
@@ -37,5 +40,5 @@ export function ExternalWebActivity(props: ExternalWebActivityProps) {
   if (state.error) return <div role="alert" className="extension-web-error">Extension web module failed: {state.error}</div>;
   if (!state.component) return <div role="status" className="extension-web-loading">Loading extension UI…</div>;
   const Component = state.component;
-  return <>{Component(props)}</>;
+  return <>{Component({ ...props, React })}</>;
 }

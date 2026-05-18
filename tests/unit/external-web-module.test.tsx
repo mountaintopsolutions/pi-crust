@@ -7,7 +7,7 @@ import type { ExtensionActivityInfo, ExtensionRegistryInfo, SessionDashboardApi 
 
 describe("ExternalWebActivity", () => {
   it("dynamically imports and renders an external web activity module", async () => {
-    const source = "export function renderActivity(props) { return `External ${props.activity.title}`; }";
+    const source = "export function renderActivity(props) { return props.React.createElement('strong', null, `External ${props.activity.title}`); }";
     const activity: ExtensionActivityInfo = {
       id: "external.panel",
       title: "Panel",
