@@ -42,6 +42,28 @@ describe("PRC extension bootstrap integration", () => {
     await expect(result.host.commands.run("shared")).resolves.toBe("explicit");
   });
 
+  it("passes session helper services into bootstrapped extensions", async () => {
+    const home = await makeHome();
+    const prompts: Array<{ sessionId: string; prompt: string }> = [];
+    const packageDir = await writeLocalExtensionPackage(home.root, {
+      name: "session-extension",
+      extensionCode: "export default async function activate(prc) { prc.commands.register({ id: 'session.run', title: 'Run', run: () => prc.sessions.createAndPrompt({ cwd: '/repo', sessionName: 'From ext', prompt: 'hello' }) }); }\n",
+    });
+
+    const result = await bootstrapPrcExtensions({
+      configDir: home.configDir,
+      cwd: home.projectRoot,
+      bundledPackagePaths: [packageDir],
+      sessions: {
+        create: async (input) => ({ id: "created-session", ...input }),
+        prompt: async (sessionId, prompt) => { prompts.push({ sessionId, prompt }); },
+      },
+    });
+
+    await expect(result.host.commands.run("session.run")).resolves.toMatchObject({ id: "created-session", sessionName: "From ext" });
+    expect(prompts).toEqual([{ sessionId: "created-session", prompt: "hello" }]);
+  });
+
   it("loads bundled package paths through the same package resolver as installed extensions", async () => {
     const home = await makeHome();
     const packageDir = await writeLocalExtensionPackage(home.root, {

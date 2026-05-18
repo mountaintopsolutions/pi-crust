@@ -121,6 +121,29 @@ function serializeExtensions(extensions: PrcExtensionHost | undefined): Record<s
   };
 }
 
+function createExtensionSessionApi(registry: SessionRegistry) {
+  return {
+    create: async (input: { readonly cwd: string; readonly sessionName?: string }) => {
+      const session = await registry.createSession(input);
+      const state = await session.handle.getState();
+      return toSessionCard(state);
+    },
+    prompt: async (sessionId: string, prompt: string) => {
+      await registry.prompt(sessionId, prompt);
+    },
+    createAndPrompt: async (input: { readonly cwd: string; readonly sessionName?: string; readonly prompt: string }) => {
+      const session = await registry.createSession(input);
+      await registry.prompt(session.id, input.prompt);
+      const state = await session.handle.getState();
+      return toSessionCard(state);
+    },
+    get: async (sessionId: string) => {
+      const state = await registry.getSession(sessionId).handle.getState();
+      return toSessionCard(state);
+    },
+  };
+}
+
 function createClientEventLog(filePath: string): ClientEventLog {
   let queue: Promise<void> = Promise.resolve();
   return {
@@ -180,6 +203,7 @@ async function startDefaultServer(): Promise<void> {
     configDir: defaultPrcConfigDir(process.env),
     cwd: projectRoot,
     env: process.env,
+    sessions: createExtensionSessionApi(registry),
   });
   if (extensionBootstrap.diagnostics.length > 0) {
     for (const diagnostic of extensionBootstrap.diagnostics) console.warn(`[extensions] ${diagnostic.source}: ${diagnostic.message}`);

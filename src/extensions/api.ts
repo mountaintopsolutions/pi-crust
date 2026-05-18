@@ -64,8 +64,14 @@ export interface PrcSessionCreateInput {
   readonly sessionName?: string;
 }
 
+export interface PrcSessionPromptInput extends PrcSessionCreateInput {
+  readonly prompt: string;
+}
+
 export interface PrcSessionsApi {
   create(input: PrcSessionCreateInput): Promise<unknown>;
+  prompt?(sessionId: string, prompt: string): Promise<void>;
+  createAndPrompt?(input: PrcSessionPromptInput): Promise<unknown>;
   get?(sessionId: string): Promise<unknown>;
 }
 
