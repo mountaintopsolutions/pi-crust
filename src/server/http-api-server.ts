@@ -17,6 +17,7 @@ import { CronStore, type CronJob } from "./cron/cron-store.js";
 import { CronScheduler } from "./cron/cron-scheduler.js";
 import { parseCron, CronParseError, nextRun as cronNextRun } from "./cron/cron-expression.js";
 import { WorkerRegistry } from "./session/worker-registry.js";
+import type { PrcExtensionHost } from "../extensions/registry.js";
 
 export interface HttpApiServerOptions {
   readonly registry: SessionRegistry;
@@ -40,6 +41,11 @@ export interface HttpApiServerOptions {
    * about the running build.
    */
   readonly gitSha?: string | (() => string);
+  /** Test-first seed for PRC server extensions. Extension routes are mounted
+   * under /api/extensions/:extensionId/* and are intentionally passed in by
+   * tests/harnesses until package discovery is wired into the default server.
+   */
+  readonly extensions?: PrcExtensionHost;
 }
 
 interface HttpApiServerContext extends HttpApiServerOptions {
@@ -242,6 +248,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
 
   if (req.method === "POST" && url.pathname === "/api/client-event") {
     return handleClientEvent(req, res, context);
+  }
+
+  if (url.pathname.startsWith("/api/extensions/")) {
+    const extensionResponse = await context.extensions?.serverRoutes.dispatch(req, url);
+    if (extensionResponse) return sendJsonWithHeaders(res, extensionResponse.status ?? 200, extensionResponse.body, extensionResponse.headers);
+    return sendJson(res, 404, { error: "extension route not found" });
   }
 
   if (url.pathname.startsWith("/api/cron")) {
@@ -803,13 +815,18 @@ async function readJson(req: http.IncomingMessage): Promise<unknown> {
 }
 
 function sendJson(res: http.ServerResponse, status: number, data: unknown): void {
+  return sendJsonWithHeaders(res, status, data);
+}
+
+function sendJsonWithHeaders(res: http.ServerResponse, status: number, data: unknown, headers: Record<string, string> = {}): void {
   setCors(res);
   res.statusCode = status;
+  for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
   if (status === 204) {
     res.end();
     return;
   }
-  res.setHeader("Content-Type", "application/json");
+  if (!res.hasHeader("Content-Type")) res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(data));
 }
 
