@@ -6,7 +6,11 @@ import type { ActivateExtensionInput } from "./registry.js";
 import type { ResolvedExtensionEntry } from "./packages.js";
 
 export async function loadPrcExtensionFactory(filePath: string): Promise<PrcExtensionFactory> {
-  const module = await import(pathToFileURL(filePath).href) as PrcExtensionModule;
+  const url = pathToFileURL(filePath);
+  const stat = await fs.stat(filePath);
+  url.searchParams.set("mtime", String(stat.mtimeMs));
+  url.searchParams.set("size", String(stat.size));
+  const module = await import(url.href) as PrcExtensionModule;
   const candidate = module.default ?? module;
   if (typeof candidate === "function") return candidate;
   if (candidate && typeof candidate === "object" && typeof candidate.activate === "function") return candidate.activate;

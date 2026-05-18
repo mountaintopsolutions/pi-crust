@@ -18,7 +18,8 @@ import { CronScheduler } from "./cron/cron-scheduler.js";
 import { parseCron, CronParseError, nextRun as cronNextRun } from "./cron/cron-expression.js";
 import { WorkerRegistry } from "./session/worker-registry.js";
 import type { PrcExtensionHost } from "../extensions/registry.js";
-import { bootstrapPrcExtensions, defaultPrcConfigDir } from "../extensions/bootstrap.js";
+import { defaultPrcConfigDir } from "../extensions/bootstrap.js";
+import { createPrcExtensionRuntime, type PrcExtensionRuntime } from "../extensions/runtime.js";
 
 export interface HttpApiServerOptions {
   readonly registry: SessionRegistry;
@@ -47,6 +48,7 @@ export interface HttpApiServerOptions {
    * tests/harnesses until package discovery is wired into the default server.
    */
   readonly extensions?: PrcExtensionHost;
+  readonly extensionRuntime?: PrcExtensionRuntime;
 }
 
 interface HttpApiServerContext extends HttpApiServerOptions {
@@ -91,6 +93,10 @@ function resolveContextGitSha(value: string | (() => string) | undefined): strin
   }
   if (typeof value === "string" && value.trim()) return value;
   return "unknown";
+}
+
+function getExtensionHost(context: Pick<HttpApiServerContext, "extensions" | "extensionRuntime">): PrcExtensionHost | undefined {
+  return context.extensionRuntime?.current ?? context.extensions;
 }
 
 function serializeExtensions(extensions: PrcExtensionHost | undefined): Record<string, unknown> {
@@ -199,14 +205,14 @@ async function startDefaultServer(): Promise<void> {
       ? "pi-sdk"
       : "pirpc";
   const registry = createDefaultRegistry(adapterKind, sessionRoot, projectRoot);
-  const extensionBootstrap = await bootstrapPrcExtensions({
+  const extensionRuntime = await createPrcExtensionRuntime({
     configDir: defaultPrcConfigDir(process.env),
     cwd: projectRoot,
     env: process.env,
     sessions: createExtensionSessionApi(registry),
   });
-  if (extensionBootstrap.diagnostics.length > 0) {
-    for (const diagnostic of extensionBootstrap.diagnostics) console.warn(`[extensions] ${diagnostic.source}: ${diagnostic.message}`);
+  if (extensionRuntime.current.diagnostics.length > 0) {
+    for (const diagnostic of extensionRuntime.current.diagnostics) console.warn(`[extensions] ${diagnostic.extensionId}: ${diagnostic.message}`);
   }
   const cronFile = path.resolve(process.env.PI_REMOTE_CRON_FILE ?? path.join(os.homedir(), ".pi", "agent", "cron-jobs.json"));
   const cronStore = new CronStore(cronFile);
@@ -227,7 +233,7 @@ async function startDefaultServer(): Promise<void> {
     cronScheduler,
     clientEventLogPath,
     gitSha,
-    extensions: extensionBootstrap.host,
+    extensionRuntime,
   });
   // Reattach any detached Pi RPC workers that survived a previous API process.
   try {
@@ -313,12 +319,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
   }
 
   if (req.method === "GET" && url.pathname === "/api/extensions") {
-    return sendJson(res, 200, serializeExtensions(context.extensions));
+    return sendJson(res, 200, serializeExtensions(getExtensionHost(context)));
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/extensions/reload") {
+    if (!context.extensionRuntime) return sendJson(res, 400, { error: "extension reload is not configured" });
+    const result = await context.extensionRuntime.reload();
+    return sendJson(res, result.applied ? 200 : 400, { ...result, extensions: serializeExtensions(context.extensionRuntime.current) });
   }
 
   const extensionAssetMatch = url.pathname.match(/^\/api\/extensions\/([^/]+)\/assets\/([^/]+)$/);
   if (req.method === "GET" && extensionAssetMatch) {
-    const asset = context.extensions?.getWebAsset(decodeURIComponent(extensionAssetMatch[1]!));
+    const asset = getExtensionHost(context)?.getWebAsset(decodeURIComponent(extensionAssetMatch[1]!));
     if (!asset || path.basename(asset.filePath) !== decodeURIComponent(extensionAssetMatch[2]!)) return sendJson(res, 404, { error: "extension asset not found" });
     return serveExtensionAsset(asset.filePath, res);
   }
@@ -329,12 +341,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
   }
 
   if (url.pathname.startsWith("/api/extensions/")) {
-    const extensionResponse = await context.extensions?.serverRoutes.dispatch(req, url);
+    const extensionResponse = await getExtensionHost(context)?.serverRoutes.dispatch(req, url);
     if (extensionResponse) return sendJsonWithHeaders(res, extensionResponse.status ?? 200, extensionResponse.body, extensionResponse.headers);
     return sendJson(res, 404, { error: "extension route not found" });
   }
 
-  const apiExtensionResponse = await context.extensions?.serverRoutes.dispatch(req, url);
+  const apiExtensionResponse = await getExtensionHost(context)?.serverRoutes.dispatch(req, url);
   if (apiExtensionResponse) return sendJsonWithHeaders(res, apiExtensionResponse.status ?? 200, apiExtensionResponse.body, apiExtensionResponse.headers);
 
   if (url.pathname.startsWith("/api/cron")) {
@@ -902,7 +914,7 @@ async function handleExtensionCommand(
   extensionId: string,
   invocationName: string,
 ): Promise<void> {
-  const command = context.extensions?.commands.get(invocationName);
+  const command = getExtensionHost(context)?.commands.get(invocationName);
   if (!command || command.extensionId !== extensionId) return sendJson(res, 404, { error: "extension command not found" });
   const input = await readJson(req);
   const result = await command.run(input);
