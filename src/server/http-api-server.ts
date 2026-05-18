@@ -19,6 +19,7 @@ import { parseCron, CronParseError, nextRun as cronNextRun } from "./cron/cron-e
 import { WorkerRegistry } from "./session/worker-registry.js";
 import type { PrcExtensionHost } from "../extensions/registry.js";
 import { bootstrapPrcExtensions, defaultPrcConfigDir } from "../extensions/bootstrap.js";
+import { createScheduleServerExtension } from "./extensions/builtin/schedule-extension.js";
 
 export interface HttpApiServerOptions {
   readonly registry: SessionRegistry;
@@ -174,17 +175,18 @@ async function startDefaultServer(): Promise<void> {
       ? "pi-sdk"
       : "pirpc";
   const registry = createDefaultRegistry(adapterKind, sessionRoot, projectRoot);
+  const cronFile = path.resolve(process.env.PI_REMOTE_CRON_FILE ?? path.join(os.homedir(), ".pi", "agent", "cron-jobs.json"));
+  const cronStore = new CronStore(cronFile);
+  const cronScheduler = new CronScheduler({ store: cronStore, registry });
   const extensionBootstrap = await bootstrapPrcExtensions({
     configDir: defaultPrcConfigDir(process.env),
     cwd: projectRoot,
     env: process.env,
+    builtIns: [createScheduleServerExtension({ store: cronStore, scheduler: cronScheduler })],
   });
   if (extensionBootstrap.diagnostics.length > 0) {
     for (const diagnostic of extensionBootstrap.diagnostics) console.warn(`[extensions] ${diagnostic.source}: ${diagnostic.message}`);
   }
-  const cronFile = path.resolve(process.env.PI_REMOTE_CRON_FILE ?? path.join(os.homedir(), ".pi", "agent", "cron-jobs.json"));
-  const cronStore = new CronStore(cronFile);
-  const cronScheduler = new CronScheduler({ store: cronStore, registry });
   void cronScheduler.start().catch((error) => console.error("[cron] failed to start scheduler", error));
   const clientEventLogPath = process.env.PI_REMOTE_CLIENT_EVENT_LOG
     ?? path.resolve(process.cwd(), "logs", "client-events.jsonl");
