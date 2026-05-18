@@ -166,6 +166,36 @@ describe("SessionDashboard", () => {
     expect(row!.querySelector(".session-name-field")).toBeNull();
   });
 
+  it("opens extension settings and toggles extension enablement", async () => {
+    const api = {
+      ...makeApi(),
+      getExtensionSettings: vi.fn(async () => ({
+        disabledExtensions: ["disabled.demo"],
+        packages: ["npm:demo"],
+        extensions: {
+          commands: [],
+          activities: [{ id: "demo.activity", title: "Demo", extensionId: "demo" }],
+          routes: [],
+          diagnostics: [{ extensionId: "disabled.demo", level: "error" as const, message: "bad config" }],
+        },
+      })),
+      setExtensionEnabled: vi.fn(async (_extensionId: string, _enabled: boolean) => ({
+        applied: true,
+        diagnostics: [],
+        extensions: { commands: [], activities: [], routes: [], diagnostics: [] },
+      })),
+    } satisfies SessionDashboardApi;
+    render(<SessionDashboard api={api} />);
+    await screen.findByRole("heading", { name: "pi remote" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    await screen.findByRole("heading", { name: "Extension settings" });
+    expect(screen.getByLabelText("Installed extensions")).toHaveTextContent("bad config");
+    fireEvent.click(screen.getByLabelText(/disabled.demo/));
+    await waitFor(() => expect(api.setExtensionEnabled).toHaveBeenCalledWith("disabled.demo", true));
+  });
+
   it("reloads extensions from the sidebar and renders new activities", async () => {
     const api = {
       ...makeApi(),
