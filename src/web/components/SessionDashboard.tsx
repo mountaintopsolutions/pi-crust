@@ -8,10 +8,11 @@ import { ModelPicker } from "./ModelPicker.js";
 import { PromptComposer, type ComposerAttachment } from "./PromptComposer.js";
 import { ShortcutHelp } from "./ShortcutHelp.js";
 import { ExtensionUiHost } from "./ExtensionUiHost.js";
-import { CronPanel } from "./CronPanel.js";
+import { createScheduleActivity } from "../extensions/builtin/schedule-extension.js";
+import type { WebActivityContribution } from "../extensions/types.js";
 import "./session-dashboard.css";
 
-type DashboardView = "sessions" | "cron" | `extension:${string}`;
+type DashboardView = "sessions" | `activity:${string}`;
 
 export interface SessionDashboardProps {
   readonly api: SessionDashboardApi;
@@ -317,6 +318,45 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   }, [namedOnly, query, sessions, sortMode, lastUserActivityById]);
 
   const activeSession = activeSessionId ? sessions.find((session) => session.id === activeSessionId) : null;
+  const openScheduleSession = useCallback((sessionId: string) => {
+    setView("sessions");
+    setActiveSessionId(sessionId);
+    void (async () => {
+      try {
+        const refreshed = await api.listSessions(defaultCwd);
+        // Scheduled jobs commonly run with a cwd outside the dashboard's
+        // current list filter. Fetch the spawned session explicitly so the
+        // active-session pane has data to render.
+        let merged: readonly SessionCardData[] = refreshed;
+        if (!refreshed.some((session) => session.id === sessionId) && api.getSession) {
+          try {
+            const spawned = await api.getSession(sessionId);
+            merged = [spawned, ...refreshed];
+          } catch {
+            // Keep the active id even if explicit hydration fails; the URL can
+            // still recover when the session becomes listable.
+          }
+        }
+        setSessions(merged);
+      } catch (caught) {
+        setError(errorMessage(caught));
+      }
+    })();
+  }, [api, defaultCwd]);
+  const builtInActivities = useMemo<WebActivityContribution[]>(
+    () => api.cron ? [createScheduleActivity({ api: api.cron, defaultCwd, onOpenSession: openScheduleSession })] : [],
+    [api.cron, defaultCwd, openScheduleSession],
+  );
+  const webActivities = useMemo<WebActivityContribution[]>(() => [
+    ...builtInActivities,
+    ...extensions.activities.map((activity): WebActivityContribution => ({
+      id: activity.id,
+      title: activity.title,
+      ...(activity.order === undefined ? {} : { order: activity.order }),
+      extensionId: activity.extensionId,
+      render: () => <ExtensionActivityPanel activity={activity} extensions={extensions} />,
+    })),
+  ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title)), [builtInActivities, extensions]);
   const extensionSlashCommands = useMemo(
     () => extensions.commands.map((command) => command.slashName).filter((slashName): slashName is string => Boolean(slashName)),
     [extensions.commands],
@@ -325,8 +365,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     () => unique(["model", "settings", "tree", "compact", "session", "new", "clear", "fork", "clone", ...extensionSlashCommands]),
     [extensionSlashCommands],
   );
-  const activeExtensionActivity = view.startsWith("extension:")
-    ? extensions.activities.find((activity) => activity.id === view.slice("extension:".length))
+  const activeActivity = view.startsWith("activity:")
+    ? webActivities.find((activity) => activity.id === view.slice("activity:".length))
     : undefined;
 
   async function createSession(input?: { readonly cwd?: string; readonly sessionName?: string }) {
@@ -722,17 +762,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
               </span>
             ) : "New session"}
           </button>
-          <button
-            type="button"
-            className={`sidebar-menu-item ${view === "cron" ? "active" : ""}`}
-            aria-pressed={view === "cron"}
-            onClick={() => setView(view === "cron" ? "sessions" : "cron")}
-          >
-            <CronGlyph />
-            Schedule
-          </button>
-          {extensions.activities.map((activity) => {
-            const activityView = `extension:${activity.id}` as DashboardView;
+          {webActivities.map((activity) => {
+            const activityView = `activity:${activity.id}` as DashboardView;
             return (
               <button
                 key={activity.id}
@@ -741,7 +772,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                 aria-pressed={view === activityView}
                 onClick={() => setView(view === activityView ? "sessions" : activityView)}
               >
-                <ExtensionGlyph />
+                {activity.extensionId === "core.schedule" ? <CronGlyph /> : <ExtensionGlyph />}
                 {activity.title}
               </button>
             );
@@ -810,42 +841,9 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         </ul>
       </aside>
 
-      <section className="active-session" aria-label={view === "cron" ? "Schedule" : activeExtensionActivity ? activeExtensionActivity.title : "Active session"}>
-        {activeExtensionActivity ? (
-          <ExtensionActivityPanel activity={activeExtensionActivity} extensions={extensions} />
-        ) : view === "cron" && api.cron ? (
-          <CronPanel
-            api={api.cron}
-            defaultCwd={defaultCwd}
-            onOpenSession={(sessionId) => {
-              setView("sessions");
-              setActiveSessionId(sessionId);
-              void (async () => {
-                try {
-                  const refreshed = await api.listSessions(defaultCwd);
-                  // The spawned session may live outside defaultCwd (cron
-                  // jobs commonly run with a different cwd than the
-                  // dashboard was loaded with), in which case listSessions
-                  // — filtered server-side — won't include it. Fetch it
-                  // explicitly so the active-session pane has data to render.
-                  let merged: readonly SessionCardData[] = refreshed;
-                  if (!refreshed.some((session) => session.id === sessionId) && api.getSession) {
-                    try {
-                      const spawned = await api.getSession(sessionId);
-                      merged = [spawned, ...refreshed];
-                    } catch {
-                      // If getSession fails we still set the activeSessionId;
-                      // the user will see the empty-state message but can
-                      // recover via the URL or sidebar.
-                    }
-                  }
-                  setSessions(merged);
-                } catch (caught) {
-                  setError(errorMessage(caught));
-                }
-              })();
-            }}
-          />
+      <section className="active-session" aria-label={activeActivity ? activeActivity.title : "Active session"}>
+        {activeActivity ? (
+          activeActivity.render()
         ) : activeSession ? (
           <>
             <header>

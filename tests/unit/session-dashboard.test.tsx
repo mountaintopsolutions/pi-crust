@@ -96,6 +96,7 @@ describe("SessionDashboard", () => {
     render(<SessionDashboard api={makeApi()} />);
     await screen.findByRole("heading", { name: "pi remote" });
     expect(screen.getByText("Select or create a session.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Schedule" })).not.toBeInTheDocument();
   });
 
   it("shows a loading state on the New session button while the session is being created", async () => {
