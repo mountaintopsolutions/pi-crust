@@ -8,6 +8,8 @@ beforeEach(() => {
     window.history.replaceState(null, "", "/");
     window.localStorage.clear();
   }
+  document.title = "";
+  document.head.innerHTML = '<link rel="icon" href="/favicon.svg">';
 });
 import { SessionDashboard } from "../../src/web/components/SessionDashboard.js";
 import type { ExtensionUiResponse } from "../../src/shared/protocol.js";
@@ -105,6 +107,28 @@ describe("SessionDashboard", () => {
     await screen.findByRole("heading", { name: "pi remote" });
     expect(screen.getByText("Select or create a session.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Schedule" })).not.toBeInTheDocument();
+  });
+
+  it("applies server-provided app name and icon branding", async () => {
+    const api = {
+      ...makeApi(),
+      getServerInfo: vi.fn(async () => ({
+        gitSha: "abc123",
+        adapter: "test",
+        projectRoot: "/tmp/project",
+        sessionRoot: "/tmp/sessions",
+        defaultCwd: "/tmp/project",
+        appName: "Moody Lab",
+        appIcon: "🚀",
+      })),
+    } satisfies SessionDashboardApi;
+    const { container } = render(<SessionDashboard api={api} />);
+
+    await screen.findByRole("heading", { name: "Moody Lab" });
+
+    expect(container.querySelector(".app-brand-icon-text")).toHaveTextContent("🚀");
+    expect(document.title).toBe("Moody Lab");
+    expect(document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.href).toContain("data:image/svg+xml");
   });
 
   it("shows a loading state on the New session button while the session is being created", async () => {
@@ -481,11 +505,13 @@ describe("SessionDashboard", () => {
   it("typing in the inline name input and sending a prompt renames the session", async () => {
     const handlers = renderDashboardCapturingPrompts();
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    const nameInput = await screen.findByLabelText("Name this session") as HTMLInputElement;
+    await screen.findByLabelText("Name this session");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Untitled session" })).toBeInTheDocument());
+    const nameInput = screen.getByLabelText("Name this session") as HTMLInputElement;
 
     fireEvent.focus(nameInput);
     fireEvent.change(nameInput, { target: { value: "Feature work" } });
-    expect(nameInput).toHaveValue("Feature work");
+    await waitFor(() => expect(nameInput).toHaveValue("Feature work"));
     // The inline name input commits on blur — simulating the user moving
     // focus from the name field to the prompt textarea before sending.
     fireEvent.blur(nameInput);

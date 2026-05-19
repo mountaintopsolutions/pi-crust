@@ -92,6 +92,12 @@ function resolveContextGitSha(value: string | (() => string) | undefined): strin
   return "unknown";
 }
 
+function resolveAppBranding(env: NodeJS.ProcessEnv): { readonly appName: string; readonly appIcon?: string } {
+  const appName = env.PI_REMOTE_APP_NAME?.trim() || "pi remote";
+  const appIcon = env.PI_REMOTE_APP_ICON?.trim();
+  return { appName, ...(appIcon ? { appIcon } : {}) };
+}
+
 function getExtensionHost(context: Pick<HttpApiServerContext, "extensions" | "extensionRuntime">): PrcExtensionHost | undefined {
   return context.extensionRuntime?.current ?? context.extensions;
 }
@@ -309,6 +315,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
       // default 'Working directory' in the New Session dialog, which is
       // friendlier than seeding it with whatever the API was invoked from.
       homeCwd: os.homedir(),
+      ...resolveAppBranding(process.env),
       gitSha: resolveContextGitSha(context.gitSha),
     });
   }

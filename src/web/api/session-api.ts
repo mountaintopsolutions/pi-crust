@@ -215,7 +215,13 @@ export interface ExtensionSettingsResponse {
   readonly extensions: ExtensionRegistryInfo;
 }
 
-export interface ServerInfo {
+export interface AppBrandingInfo {
+  readonly appName: string;
+  /** Icon for the app title area. Can be an emoji/text glyph or an image URL/data URL. */
+  readonly appIcon?: string;
+}
+
+export interface ServerInfo extends AppBrandingInfo {
   readonly gitSha: string;
   readonly adapter: string;
   readonly projectRoot: string;
