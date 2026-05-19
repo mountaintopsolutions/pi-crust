@@ -29,6 +29,8 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   // decide whether $HOME is a safe default for new sessions or whether
   // we should fall back to the API server's own cwd.
   const [projectRoot, setProjectRoot] = useState("");
+  const [appName, setAppName] = useState("pi remote");
+  const [appIcon, setAppIcon] = useState<string | undefined>(undefined);
   // The user's home directory (server-side). Preferred as the New Session
   // dialog default; falls back to defaultCwd when the API doesn't expose it.
   const [homeCwd, setHomeCwd] = useState<string>("");
@@ -139,6 +141,11 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
   }, [filtersOpen]);
 
   useEffect(() => {
+    document.title = appName === "pi remote" ? "pi remote control" : appName;
+    updateFavicon(appIcon);
+  }, [appName, appIcon]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -162,7 +169,11 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         if (api.getServerInfo) {
           try {
             const info = await api.getServerInfo();
-            if (!cancelled) setProjectRoot(info.projectRoot ?? "");
+            if (!cancelled) {
+              setProjectRoot(info.projectRoot ?? "");
+              setAppName(info.appName || "pi remote");
+              setAppIcon(info.appIcon);
+            }
           } catch {
             // Optional capability; ignore.
           }
@@ -790,7 +801,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
 
       <aside className="session-sidebar" aria-label="Sessions" aria-hidden={!sidebarOpen}>
         <header>
-          <h1>pi remote</h1>
+          <AppBrand appName={appName} {...(appIcon ? { appIcon } : {})} />
           <button
             type="button"
             className="sidebar-toggle"
@@ -1099,6 +1110,42 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
  * state so keystrokes don't bubble up to SessionDashboard re-renders
  * (and therefore don't churn the MessageTimeline). Commits on blur.
  */
+function AppBrand({ appName, appIcon }: { readonly appName: string; readonly appIcon?: string }) {
+  return (
+    <div className="app-brand">
+      {appIcon ? <BrandIcon value={appIcon} /> : null}
+      <h1>{appName}</h1>
+    </div>
+  );
+}
+
+function BrandIcon({ value }: { readonly value: string }) {
+  if (isImageIcon(value)) {
+    return <img className="app-brand-icon" src={value} alt="" aria-hidden="true" />;
+  }
+  return <span className="app-brand-icon app-brand-icon-text" aria-hidden="true">{value}</span>;
+}
+
+function isImageIcon(value: string): boolean {
+  return /^(data:image\/|https?:\/\/|\/|\.\/|\.\.\/)/.test(value);
+}
+
+function updateFavicon(appIcon: string | undefined): void {
+  if (typeof document === "undefined") return;
+  const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) return;
+  if (!appIcon) {
+    link.href = "/favicon.svg";
+    return;
+  }
+  link.href = isImageIcon(appIcon) ? appIcon : emojiIconDataUrl(appIcon);
+}
+
+function emojiIconDataUrl(value: string): string {
+  const escaped = value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111827"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="36">${escaped}</text></svg>`)}`;
+}
+
 function InlineNameInput(props: {
   readonly sessionId: string;
   readonly currentName: string;

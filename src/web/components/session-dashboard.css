@@ -73,6 +73,31 @@
   margin-bottom: 4px;
 }
 
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-brand-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.app-brand-icon-text {
+  display: inline-grid;
+  place-items: center;
+  background: var(--gray-080);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1;
+}
+
 .session-sidebar > header h1 {
   margin: 0;
   /* Most prominent element in the sidebar. */
@@ -80,7 +105,10 @@
   font-size: 19px;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-create {

@@ -16,6 +16,8 @@
  *   PI_REMOTE_API_HOST   bind host (default 127.0.0.1, override to 0.0.0.0
  *                        when sharing on a tailnet)
  *   PI_REMOTE_OPEN       set to "0" to skip opening the system browser
+ *   PI_REMOTE_APP_NAME   app title shown in the WUI (default "pi remote")
+ *   PI_REMOTE_APP_ICON   app title icon: emoji/text glyph, image URL/path, or data URL
  *   PI_REMOTE_ADAPTER    "pirpc" (default) / "pi-sdk" / "mock"
  *   PI_REMOTE_USE_MOCK   set to "1" for the offline mock adapter
  */
