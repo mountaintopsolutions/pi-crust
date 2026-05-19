@@ -68,11 +68,30 @@ export interface PrcSessionPromptInput extends PrcSessionCreateInput {
   readonly prompt: string;
 }
 
+export interface PrcForkMessage {
+  readonly entryId: string;
+  readonly text: string;
+}
+
+export interface PrcForkSessionResult {
+  readonly cancelled: boolean;
+  readonly text?: string;
+  readonly session: unknown;
+}
+
+export interface PrcCloneSessionResult {
+  readonly cancelled: boolean;
+  readonly session: unknown;
+}
+
 export interface PrcSessionsApi {
   create(input: PrcSessionCreateInput): Promise<unknown>;
   prompt?(sessionId: string, prompt: string): Promise<void>;
   createAndPrompt?(input: PrcSessionPromptInput): Promise<unknown>;
   get?(sessionId: string): Promise<unknown>;
+  getForkMessages?(sessionId: string): Promise<readonly PrcForkMessage[]>;
+  forkSession?(sessionId: string, entryId: string): Promise<PrcForkSessionResult>;
+  cloneSession?(sessionId: string): Promise<PrcCloneSessionResult>;
 }
 
 export interface PrcExtensionContext {

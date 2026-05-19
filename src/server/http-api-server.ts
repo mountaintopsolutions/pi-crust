@@ -130,6 +130,15 @@ function createExtensionSessionApi(registry: SessionRegistry) {
       const state = await registry.getSession(sessionId).handle.getState();
       return toSessionCard(state);
     },
+    getForkMessages: async (sessionId: string) => registry.getForkMessages(sessionId),
+    forkSession: async (sessionId: string, entryId: string) => {
+      const { result, session } = await registry.forkSession(sessionId, entryId);
+      return { ...result, session: toSessionCard(await session.handle.getState()) };
+    },
+    cloneSession: async (sessionId: string) => {
+      const { result, session } = await registry.cloneSession(sessionId);
+      return { ...result, session: toSessionCard(await session.handle.getState()) };
+    },
   };
 }
 
@@ -200,7 +209,11 @@ async function startDefaultServer(): Promise<void> {
     cwd: projectRoot,
     env: process.env,
     dataDir: path.resolve(process.env.PI_REMOTE_DATA_DIR ?? path.join(os.homedir(), ".pi-remote-control", "data")),
-    bundledPackagePaths: [path.resolve(process.cwd(), "extensions", "schedule")],
+    bundledPackagePaths: [
+      path.resolve(process.cwd(), "extensions", "schedule"),
+      path.resolve(process.cwd(), "extensions", "branching"),
+      path.resolve(process.cwd(), "extensions", "artifacts"),
+    ],
     sessions: createExtensionSessionApi(registry),
   });
   if (extensionRuntime.current.diagnostics.length > 0) {
@@ -400,16 +413,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
     }
   }
 
-  // Artifact files live at <session.cwd>/.pi/artifacts/<sessionId>/<file>.
-  // Served by GET /api/sessions/:sessionId/artifacts/:file (no traversal,
-  // single file segment only) so the @cemoody/pi-artifact extension's
-  // image/HTML representations resolve in the browser.
-  const artifactMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/artifacts\/([^/]+)$/);
-  if (req.method === "GET" && artifactMatch) {
-    return handleArtifact(req, res, context, decodeURIComponent(artifactMatch[1]!), decodeURIComponent(artifactMatch[2]!));
-  }
-
-  const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(messages|prompt|bash|abort|rename|delete|model|state|events|extension-ui-response|fork-messages|fork|clone))?$/);
+  const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(messages|prompt|bash|abort|rename|delete|model|state|events|extension-ui-response))?$/);
   if (!match) return sendJson(res, 404, { error: "not found" });
   const sessionId = decodeURIComponent(match[1]!);
   const action = match[2] ?? "state";
@@ -513,27 +517,6 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
     return sendJson(res, 200, toSessionCard(await session.handle.getState(), metadata));
   }
 
-  if (req.method === "GET" && action === "fork-messages") {
-    const session = await getOrOpenSession(context, sessionId);
-    return sendJson(res, 200, await context.registry.getForkMessages(session.id));
-  }
-
-  if (req.method === "POST" && action === "fork") {
-    const body = await readJson(req) as { entryId?: string };
-    if (!body.entryId) return sendJson(res, 400, { error: "entryId is required" });
-    const source = await getOrOpenSession(context, sessionId);
-    const { result, session } = await context.registry.forkSession(source.id, body.entryId);
-    context.coldSessionFiles.set(session.id, session.sessionFile);
-    return sendJson(res, 200, { ...result, session: toSessionCard(await session.handle.getState()) });
-  }
-
-  if (req.method === "POST" && action === "clone") {
-    const source = await getOrOpenSession(context, sessionId);
-    const { result, session } = await context.registry.cloneSession(source.id);
-    context.coldSessionFiles.set(session.id, session.sessionFile);
-    return sendJson(res, 200, { ...result, session: toSessionCard(await session.handle.getState()) });
-  }
-
   if (req.method === "POST" && action === "prompt") {
     const body = await readJson(req) as { text?: string; attachments?: readonly PromptAttachment[] };
     const text = body.text ?? "";
@@ -601,19 +584,6 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, conte
   return sendJson(res, 405, { error: "method not allowed" });
 }
 
-const ARTIFACT_MIME: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".html": "text/html; charset=utf-8",
-  ".htm": "text/html; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
-};
-
 async function handleClientEvent(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -650,63 +620,6 @@ async function handleClientEvent(
   };
   await context.clientEventLog?.append(enriched);
   return sendJson(res, 204, undefined);
-}
-
-async function handleArtifact(
-  _req: http.IncomingMessage,
-  res: http.ServerResponse,
-  context: HttpApiServerContext,
-  sessionId: string,
-  file: string,
-): Promise<void> {
-  setCors(res);
-  // Defense in depth: filename must be a single segment with no traversal.
-  if (file.includes("/") || file.includes("\\") || file === "." || file === ".." || file.includes("\0")) {
-    return sendJson(res, 400, { error: "invalid artifact filename" });
-  }
-  // The @cemoody/pi-artifact extension uses the full session-file ID
-  // ("<iso-timestamp>_<uuid>") in its emitted artifact URLs, but the session
-  // registry indexes sessions by the bare UUID. Accept both forms so the
-  // browser can fetch /api/sessions/<full-id>/artifacts/<file> directly.
-  const registryId = (() => {
-    if (context.registry.hasSession(sessionId)) return sessionId;
-    const underscoreIdx = sessionId.lastIndexOf("_");
-    if (underscoreIdx >= 0) {
-      const tail = sessionId.slice(underscoreIdx + 1);
-      if (context.registry.hasSession(tail) || context.coldSessionFiles.has(tail)) return tail;
-    }
-    return sessionId;
-  })();
-  let session;
-  try {
-    session = await getOrOpenSession(context, registryId);
-  } catch (error) {
-    return sendJson(res, 404, { error: error instanceof Error ? error.message : "unknown session" });
-  }
-  const state = await session.handle.getState();
-  const cwd = state.cwd;
-  if (typeof cwd !== "string" || !cwd) return sendJson(res, 500, { error: "session has no cwd" });
-  // The on-disk artifact directory uses the *URL's* sessionId, which matches
-  // what the extension wrote when it created the file.
-  const artifactsDir = path.resolve(cwd, ".pi/artifacts", sessionId);
-  const filePath = path.resolve(artifactsDir, file);
-  // Ensure the resolved path is still inside the per-session artifacts dir.
-  if (filePath !== path.join(artifactsDir, file)) {
-    return sendJson(res, 400, { error: "path escape rejected" });
-  }
-  let stat;
-  try {
-    stat = await fsp.stat(filePath);
-  } catch {
-    return sendJson(res, 404, { error: "artifact not found" });
-  }
-  if (!stat.isFile()) return sendJson(res, 404, { error: "not a file" });
-  const ext = path.extname(file).toLowerCase();
-  res.statusCode = 200;
-  res.setHeader("Content-Type", ARTIFACT_MIME[ext] ?? "application/octet-stream");
-  res.setHeader("Content-Length", String(stat.size));
-  res.setHeader("Cache-Control", "private, max-age=300");
-  fs.createReadStream(filePath).pipe(res);
 }
 
 async function getOrOpenSession(context: HttpApiServerContext, sessionId: string) {
@@ -1018,6 +931,18 @@ function sendJsonWithHeaders(res: http.ServerResponse, status: number, data: unk
   for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
   if (status === 204) {
     res.end();
+    return;
+  }
+  if (data instanceof Uint8Array) {
+    if (!res.hasHeader("Content-Type")) res.setHeader("Content-Type", "application/octet-stream");
+    if (!res.hasHeader("Content-Length")) res.setHeader("Content-Length", String(data.byteLength));
+    res.end(data);
+    return;
+  }
+  const contentType = String(res.getHeader("Content-Type") ?? "");
+  if (typeof data === "string" && contentType && !contentType.includes("json")) {
+    if (!res.hasHeader("Content-Length")) res.setHeader("Content-Length", String(Buffer.byteLength(data)));
+    res.end(data);
     return;
   }
   if (!res.hasHeader("Content-Type")) res.setHeader("Content-Type", "application/json");

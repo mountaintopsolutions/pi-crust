@@ -3,11 +3,13 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createPrcExtensionRuntime } from "../../src/extensions/runtime.js";
 import { createHttpApiServer } from "../../src/server/http-api-server.js";
 import { MockPiAdapter } from "../../src/server/pi/mock-pi-adapter.js";
 import { PathPolicy } from "../../src/server/security/path-policy.js";
 import { SessionRegistry } from "../../src/server/session/session-registry.js";
 
+const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const servers: http.Server[] = [];
 
 afterEach(async () => {
@@ -79,10 +81,45 @@ async function makeServer() {
     adapter,
     pathPolicy: new PathPolicy({ allowedProjectRoots: [projectRoot], allowedSessionRoots: [sessionRoot] }),
   });
-  const server = createHttpApiServer({ registry, adapterKind: "test", projectRoot, sessionRoot, defaultCwd: projectRoot });
+  const extensionRuntime = await createPrcExtensionRuntime({
+    configDir: path.join(root, "config"),
+    cwd: projectRoot,
+    dataDir: path.join(root, "data"),
+    bundledPackagePaths: [path.join(repoRoot, "extensions", "branching")],
+    sessions: createSessionsApi(registry),
+  });
+  const server = createHttpApiServer({ registry, adapterKind: "test", projectRoot, sessionRoot, defaultCwd: projectRoot, extensionRuntime });
   servers.push(server);
   const baseUrl = await listen(server);
   return { baseUrl, registry, projectRoot, sessionRoot };
+}
+
+function createSessionsApi(registry: SessionRegistry) {
+  return {
+    create: async (input: { readonly cwd: string; readonly sessionName?: string }) => toCard(await (await registry.createSession(input)).handle.getState()),
+    prompt: async (sessionId: string, prompt: string) => { await registry.prompt(sessionId, prompt); },
+    get: async (sessionId: string) => toCard(await registry.getSession(sessionId).handle.getState()),
+    getForkMessages: async (sessionId: string) => registry.getForkMessages(sessionId),
+    forkSession: async (sessionId: string, entryId: string) => {
+      const { result, session } = await registry.forkSession(sessionId, entryId);
+      return { ...result, session: toCard(await session.handle.getState()) };
+    },
+    cloneSession: async (sessionId: string) => {
+      const { result, session } = await registry.cloneSession(sessionId);
+      return { ...result, session: toCard(await session.handle.getState()) };
+    },
+  };
+}
+
+function toCard(state: Awaited<ReturnType<import("../../src/server/pi/types.js").PiSessionHandle["getState"]>>) {
+  return {
+    id: state.id,
+    cwd: state.cwd,
+    sessionFile: state.sessionFile,
+    sessionName: state.sessionName,
+    status: state.status === "running" ? "streaming" : state.status,
+    lastActivity: state.lastActivity,
+  };
 }
 
 async function listen(server: http.Server): Promise<string> {

@@ -390,9 +390,15 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
     () => extensions.commands.map((command) => command.slashName).filter((slashName): slashName is string => Boolean(slashName)),
     [extensions.commands],
   );
+  const hasExtensionSlashCommand = useCallback((name: string) => extensions.commands.some((command) => command.slashName === name), [extensions.commands]);
   const commandSuggestions = useMemo(
-    () => unique(["model", "settings", "tree", "compact", "session", "new", "clear", "fork", "clone", ...extensionSlashCommands]),
-    [extensionSlashCommands],
+    () => unique([
+      "model", "settings", "tree", "compact", "session", "new", "clear",
+      ...(api.getForkMessages && api.forkSession ? ["fork"] : []),
+      ...(api.cloneSession ? ["clone"] : []),
+      ...extensionSlashCommands,
+    ]),
+    [api.cloneSession, api.forkSession, api.getForkMessages, extensionSlashCommands],
   );
   const activeActivity = view.startsWith("activity:")
     ? webActivities.find((activity) => activity.id === view.slice("activity:".length))
@@ -629,14 +635,42 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         return;
       }
       const session = result.session;
-      setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
-      bumpUserActivity(session.id);
-      setMessagesBySession((current) => ({ ...current, [session.id]: [] }));
-      setActiveSessionId(session.id);
-      setNotice("Cloned session.");
+      openBranchedSession(session, undefined, "Cloned session.");
     } catch (caught) {
       setNotice(errorMessage(caught));
     }
+  }
+
+  function openBranchedSession(session: SessionCardData, draftText?: string, noticeText?: string) {
+    setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
+    bumpUserActivity(session.id);
+    setMessagesBySession((current) => ({ ...current, [session.id]: [] }));
+    if (draftText) {
+      setDraftSeedBySession((current) => ({ ...current, [session.id]: { id: `${Date.now()}-${session.id}`, value: draftText } }));
+    }
+    setActiveSessionId(session.id);
+    if (noticeText) setNotice(noticeText);
+  }
+
+  async function handleExtensionCommandResult(result: unknown, title: string) {
+    if (!isRecord(result) || typeof result.prcAction !== "string") {
+      setNotice(formatExtensionCommandResult(result, title));
+      return;
+    }
+    if (result.prcAction === "openForkDialog") {
+      await openForkDialog();
+      return;
+    }
+    if (result.prcAction === "openSession") {
+      if (!isSessionCardData(result.session)) throw new Error("Extension command returned an invalid session");
+      openBranchedSession(result.session, typeof result.draftText === "string" ? result.draftText : undefined, typeof result.notice === "string" ? result.notice : undefined);
+      return;
+    }
+    if (result.prcAction === "notice") {
+      setNotice(typeof result.notice === "string" ? result.notice : formatExtensionCommandResult(result, title));
+      return;
+    }
+    setNotice(formatExtensionCommandResult(result, title));
   }
 
   async function handleSlashCommand(name: string, argv: string) {
@@ -661,12 +695,6 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         // memory from other coding agents (Claude Code etc.).
         await createSession();
         return;
-      case "fork":
-        await openForkDialog(argv);
-        return;
-      case "clone":
-        await cloneActiveSession();
-        return;
       case "name":
         if (!argv.trim()) {
           setNotice("Usage: /name <session name>");
@@ -685,6 +713,14 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
         return;
       default: {
         const extensionCommand = extensions.commands.find((command) => command.slashName === name);
+        if (!extensionCommand && name === "fork") {
+          await openForkDialog(argv);
+          return;
+        }
+        if (!extensionCommand && name === "clone") {
+          await cloneActiveSession();
+          return;
+        }
         if (extensionCommand && api.runExtensionCommand) {
           try {
             const response = await api.runExtensionCommand(extensionCommand.extensionId, extensionCommand.invocationName, {
@@ -692,7 +728,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
               sessionId: activeSession.id,
               cwd: activeSession.cwd,
             }) as { result?: unknown } | undefined;
-            setNotice(formatExtensionCommandResult(response?.result, extensionCommand.title));
+            await handleExtensionCommandResult(response?.result, extensionCommand.title);
           } catch (caught) {
             setNotice(errorMessage(caught));
           }
@@ -938,7 +974,7 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                     <button type="button" className="action-icon" aria-label="Tree" title="Tree is not implemented in the web UI yet" disabled>
                       <TreeGlyph />
                     </button>
-                    <button type="button" className="action-icon" aria-label="Clone" title="Clone is not implemented in the web UI yet" disabled>
+                    <button type="button" className="action-icon" aria-label="Clone" title="Clone session" onClick={() => void handleSlashCommand("clone", "")} disabled={!api.cloneSession && !hasExtensionSlashCommand("clone")}>
                       <CloneGlyph />
                     </button>
                     <span className="active-actions-sep" aria-hidden="true" />
@@ -1549,6 +1585,14 @@ function isExtensionUiRequest(value: Record<string, unknown>): value is Extensio
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSessionCardData(value: unknown): value is SessionCardData {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.cwd === "string"
+    && typeof value.status === "string"
+    && typeof value.lastActivity === "number";
 }
 
 function toPromptAttachment(attachment: ComposerAttachment): import("../api/session-api.js").PromptAttachment {
