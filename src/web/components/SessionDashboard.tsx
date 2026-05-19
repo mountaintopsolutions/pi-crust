@@ -958,15 +958,19 @@ export function SessionDashboard({ api }: SessionDashboardProps) {
                     <button type="button" className="action-icon" aria-label="Compact" title="Compact is not implemented in the web UI yet" disabled>
                       <CompactGlyph />
                     </button>
-                    <button type="button" className="action-icon" aria-label="Fork" title="Fork session from a previous message" onClick={() => void handleSlashCommand("fork", "")} disabled={!hasExtensionSlashCommand("fork")}>
-                      <ForkGlyph />
-                    </button>
+                    {hasExtensionSlashCommand("fork") ? (
+                      <button type="button" className="action-icon" aria-label="Fork" title="Fork session from a previous message" onClick={() => void handleSlashCommand("fork", "")}>
+                        <ForkGlyph />
+                      </button>
+                    ) : null}
                     <button type="button" className="action-icon" aria-label="Tree" title="Tree is not implemented in the web UI yet" disabled>
                       <TreeGlyph />
                     </button>
-                    <button type="button" className="action-icon" aria-label="Clone" title="Clone session" onClick={() => void handleSlashCommand("clone", "")} disabled={!hasExtensionSlashCommand("clone")}>
-                      <CloneGlyph />
-                    </button>
+                    {hasExtensionSlashCommand("clone") ? (
+                      <button type="button" className="action-icon" aria-label="Clone" title="Clone session" onClick={() => void handleSlashCommand("clone", "")}>
+                        <CloneGlyph />
+                      </button>
+                    ) : null}
                     <span className="active-actions-sep" aria-hidden="true" />
                     <button type="button" className="action-icon" aria-label="Rename" title="Rename session" onClick={beginRename}>
                       <PencilGlyph />

@@ -899,7 +899,7 @@ describe("SessionDashboard", () => {
     expect(screen.queryByText(/Mock response to: \/clear/)).not.toBeInTheDocument();
   });
 
-  it("disables unimplemented top-right session action buttons", async () => {
+  it("omits extension-contributed top-right session action buttons when their extension is unavailable", async () => {
     render(<SessionDashboard api={makeApi([
       { id: "a", cwd: "/repo/a", sessionName: "Original", status: "idle", model: "m", lastActivity: 1 },
     ])} />);
@@ -908,8 +908,8 @@ describe("SessionDashboard", () => {
 
     expect(await screen.findByRole("button", { name: "Compact" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Tree" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Clone" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Fork" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Clone" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fork" })).not.toBeInTheDocument();
   });
 
   it("renames the active session via the inline form", async () => {
