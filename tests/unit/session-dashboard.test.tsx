@@ -483,14 +483,16 @@ describe("SessionDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     const nameInput = await screen.findByLabelText("Name this session") as HTMLInputElement;
 
+    fireEvent.focus(nameInput);
     fireEvent.change(nameInput, { target: { value: "Feature work" } });
+    expect(nameInput).toHaveValue("Feature work");
     // The inline name input commits on blur — simulating the user moving
     // focus from the name field to the prompt textarea before sending.
     fireEvent.blur(nameInput);
+    await waitFor(() => expect(handlers.renameCalls.length).toBe(1));
+
     fireEvent.change(screen.getByLabelText("Prompt draft"), { target: { value: "start" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-
-    await waitFor(() => expect(handlers.renameCalls.length).toBe(1));
     expect(handlers.renameCalls[0]!.name).toBe("Feature work");
     await waitFor(() => expect(screen.getByRole("heading", { name: "Feature work" })).toBeInTheDocument());
   });
@@ -899,17 +901,18 @@ describe("SessionDashboard", () => {
     expect(screen.queryByText(/Mock response to: \/clear/)).not.toBeInTheDocument();
   });
 
-  it("disables unimplemented top-right session action buttons", async () => {
+  it("omits unimplemented and extension-contributed top-right session action buttons when unavailable", async () => {
     render(<SessionDashboard api={makeApi([
       { id: "a", cwd: "/repo/a", sessionName: "Original", status: "idle", model: "m", lastActivity: 1 },
     ])} />);
     await screen.findByText("Original");
     fireEvent.click(screen.getByRole("button", { name: /Original/ }));
 
-    expect(await screen.findByRole("button", { name: "Compact" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Tree" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Clone" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Fork" })).toBeDisabled();
+    await screen.findByRole("button", { name: "Rename" });
+    expect(screen.queryByRole("button", { name: "Compact" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tree" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clone" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fork" })).not.toBeInTheDocument();
   });
 
   it("renames the active session via the inline form", async () => {
