@@ -28,7 +28,7 @@ async function shot(page: Page, vpName: string, name: string) {
 }
 
 async function selectSession(page: Page, name: RegExp) {
-  await page.getByRole("button", { name }).first().click();
+  await page.getByRole("link", { name }).first().click();
   // Mobile drawer slide-out + first-render of artifacts (vega-lite is lazy).
   await page.waitForTimeout(500);
 }
@@ -94,7 +94,7 @@ for (const vp of [MOBILE, TABLET]) {
 
     test("01 session list", async ({ page }) => {
       await page.goto("/");
-      await page.getByRole("button", { name: /Drafting the postmortem/ }).first().waitFor();
+      await page.getByRole("link", { name: /Drafting the postmortem/ }).first().waitFor();
       await shot(page, vp.name, "01-session-list");
     });
 
@@ -126,7 +126,7 @@ for (const vp of [MOBILE, TABLET]) {
 
     test("06 cron jobs admin", async ({ page }) => {
       await page.goto("/");
-      const cron = page.getByRole("button", { name: "Schedule", exact: true });
+      const cron = page.getByRole("link", { name: "Schedule", exact: true });
       if (await cron.isVisible().catch(() => false)) {
         await cron.click();
         await page.waitForTimeout(400);
@@ -188,7 +188,7 @@ test.describe(`promo @ ${DESKTOP.name} (${DESKTOP.width}x${DESKTOP.height})`, ()
 
   test("03 desktop cron admin", async ({ page }) => {
     await page.goto("/");
-    const cron = page.getByRole("button", { name: "Schedule", exact: true });
+    const cron = page.getByRole("link", { name: "Schedule", exact: true });
     if (await cron.isVisible().catch(() => false)) {
       await cron.click();
       await page.waitForTimeout(400);

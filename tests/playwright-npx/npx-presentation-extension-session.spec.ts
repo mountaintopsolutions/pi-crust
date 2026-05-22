@@ -49,17 +49,17 @@ test("npx-style fresh install can enable presentation artifact rendering for an 
     await waitForHttp(`${url}/api/health`, logs);
 
     await page.goto(url);
-    await page.getByRole("button", { name: /^Presentation artifact session\b/ }).click();
+    await page.getByRole("link", { name: /^Presentation artifact session\b/ }).click();
     await expect(page.getByText("Presentation fallback before extension install")).toBeVisible();
     await expect(page.locator('[data-testid="artifact-presentation"]')).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("link", { name: "Settings" }).click();
     await page.getByLabel("Extension package source").fill(extensionDir);
     await page.getByRole("button", { name: "Install" }).click();
     await expect(page.getByText("Extension installed and reloaded.")).toBeVisible();
     await expect(page.getByText("dev.presentations")).toBeVisible();
 
-    await page.getByRole("button", { name: /^Presentation artifact session\b/ }).click();
+    await page.getByRole("link", { name: /^Presentation artifact session\b/ }).click();
     await expect(page.locator('[data-testid="artifact-presentation"]')).toBeVisible();
     await expect(page.getByRole("button", { name: "Present deck" })).toBeVisible();
   } finally {
