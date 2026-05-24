@@ -92,12 +92,12 @@ export function ExtensionManagementPanel(props: ExtensionManagementPanelProps) {
           <h4 className="settings-subhead">Installed packages</h4>
           {packageSources.length === 0 ? <p className="settings-empty">No packages installed. Add one below to load more extensions.</p> : null}
           {packageSources.map((pkg) => (
-            <p key={pkg} className="extension-package-row"><code>{pkg}</code> {props.onRemove ? <button type="button" disabled={busy !== null} onClick={() => void run(`remove:${pkg}`, () => props.onRemove!(pkg), "Extension package removed and reloaded.")}>Remove</button> : null}</p>
+            <p key={pkg} className="extension-package-row"><code>{pkg}</code> {props.onRemove ? <button type="button" disabled={busy !== null} onClick={() => void run(`remove:${pkg}`, () => props.onRemove!(pkg), "Package removed and extensions reloaded.")}>Remove</button> : null}</p>
           ))}
           {props.onInstall ? (
             <div className="extension-package-install-row">
               <input aria-label="Extension package source" placeholder="npm:pkg, git:url, or local path" value={source} onChange={(event) => setSource(event.target.value)} />
-              <button type="button" disabled={!source.trim() || busy !== null} onClick={() => void run("install", async () => { await props.onInstall!(source.trim()); setSource(""); }, "Extension installed and reloaded.")}>{busy === "install" ? "Installing…" : "Install"}</button>
+              <button type="button" disabled={!source.trim() || busy !== null} onClick={() => void run("install", async () => { await props.onInstall!(source.trim()); setSource(""); }, "Package installed and extensions reloaded.")}>{busy === "install" ? "Installing…" : "Add package"}</button>
             </div>
           ) : null}
 
@@ -119,38 +119,6 @@ export function ExtensionManagementPanel(props: ExtensionManagementPanelProps) {
               </label>
             );
           })}
-        </section>
-        <section aria-label="Presentation template directories">
-          <h3>Presentation templates</h3>
-          <p className="settings-help">Folders scanned by <code>core.presentations</code> for template packs. Each must contain <code>pack.json</code> and <code>render.mjs</code>. Changes are picked up automatically.</p>
-          {templateDirs.length === 0 ? <p>No template directories configured.</p> : null}
-          {templateDirs.map((dir) => (
-            <p key={dir} className="extension-package-row">
-              <code>{dir}</code>{" "}
-              {props.onSaveSetting ? (
-                <button type="button" disabled={busy !== null} onClick={() => void run(`tmpl-remove:${dir}`, () => props.onSaveSetting!("presentations.templateDirs", templateDirs.filter((d) => d !== dir)), `Removed ${dir}.`)}>Remove</button>
-              ) : null}
-            </p>
-          ))}
-          {props.onSaveSetting ? (
-            <div className="extension-package-install-row">
-              <input
-                aria-label="New presentation template directory"
-                placeholder="/path/to/templates"
-                value={templateDirDraft}
-                onChange={(event) => setTemplateDirDraft(event.target.value)}
-              />
-              <button
-                type="button"
-                disabled={!templateDirDraft.trim() || busy !== null || templateDirs.includes(templateDirDraft.trim())}
-                onClick={() => void run("tmpl-add", async () => {
-                  const trimmed = templateDirDraft.trim();
-                  await props.onSaveSetting!("presentations.templateDirs", [...templateDirs, trimmed]);
-                  setTemplateDirDraft("");
-                }, `Added ${templateDirDraft.trim()}.`)}
-              >{busy === "tmpl-add" ? "Saving…" : "Add directory"}</button>
-            </div>
-          ) : null}
         </section>
         <section aria-label="Presentation template directories">
           <h3>Presentation templates</h3>
