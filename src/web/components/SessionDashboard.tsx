@@ -1249,7 +1249,7 @@ function SessionDashboardInner({ api }: SessionDashboardProps) {
           />
           <button
             type="button"
-            className="sidebar-toggle theme-toggle"
+            className="sidebar-toggle"
             aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             aria-pressed={theme === "dark"}
             title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}

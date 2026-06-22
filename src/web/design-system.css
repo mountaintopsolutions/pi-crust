@@ -14,6 +14,10 @@
 }
 
 :root {
+  /* Drives native UA widgets (scrollbars, <select> dropdowns, autofill,
+     form controls) so they match the palette instead of forcing a light
+     chrome. The dark block below flips this to `dark`. */
+  color-scheme: light;
   --gold-100: #FBF6E2; --gold-200: #F7ECC5; --gold-500: #ECD06F; --gold-600: #BDA659; --gold-700: #8E7D43;
   --blue-100: #EEE4FB; --blue-200: #DDC8F8; --blue-500: #A976ED; --blue-600: #875EBE; --blue-800: #442F5F;
   --blue-accent: #A976ED; --blue-accent-dark: #875EBE; --blue-focus: #DDC8F8;
@@ -55,6 +59,7 @@
    ordered (low numbers = dark surfaces, high numbers = light text) which
    mirrors how the light palette is used throughout the app. */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --gold-100: #2a2a14; --gold-200: #3a3818;
   --blue-100: #1e1830; --blue-200: #2a2148;
   --red-100: #2a1712; --red-200: #3a1f17;
